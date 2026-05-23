@@ -1,0 +1,16 @@
+{
+  "name": "my-workout-planner",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "pnpm -r lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\""
+  },
+  "devDependencies": {
+    "@m1nsuppp/prettier-config": "^0.0.2",
+    "prettier": "^3.3.0"
+  },
+  "packageManager": "pnpm@8.15.2"
+}
