@@ -35,6 +35,13 @@ lerna-debug.log*
 .env
 .env.*
 !.env.example
+.dev.vars
+.dev.vars.*
+
+# ---- Cloudflare / Wrangler ----
+.wrangler/
+.mf/
+wrangler-configuration.d.ts
 
 # ---- TypeScript / Build ----
 *.tsbuildinfo
