@@ -1,0 +1,21 @@
+# 의존성 / 산출물
+node_modules
+dist
+build
+out
+coverage
+.wrangler
+.turbo
+.cache
+
+# 락파일 / 생성물
+pnpm-lock.yaml
+*.tsbuildinfo
+.DS_Store
+
+# 마크다운
+*.md
+
+# 자동 생성 타입
+**/*.gen.ts
+worker-configuration.d.ts

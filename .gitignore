@@ -1,0 +1,52 @@
+# ---- macOS ----
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# ---- Node.js ----
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.npm
+.yarn-integrity
+.pnp.*
+.eslintcache
+.node_repl_history
+*.tgz
+.cache/
+
+# ---- Environment ----
+.env
+.env.*
+!.env.example
+
+# ---- TypeScript / Build ----
+*.tsbuildinfo
+dist/
+build/
+out/
+coverage/
+*.log
+
+# ---- Editor / IDE ----
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.swp
