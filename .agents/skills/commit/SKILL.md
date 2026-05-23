@@ -8,6 +8,8 @@ Kent Beck의 원칙에 따라 commit message를 작성한다. **작고, 자주, 
 
 $ARGUMENTS가 `push`일 경우 remote로 push한다.
 
+commit 계획을 출력한 후 즉시 commit 실행 (확인 불필요)
+
 ## 컨벤션
 
 monorepo이므로, commit message에 scope를 포함한다. 커밋 플래그
