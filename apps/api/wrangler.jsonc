@@ -4,4 +4,13 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-05-01",
   "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "workout",
+      // 로컬 개발/마이그레이션용 placeholder. 원격 배포 전 `wrangler d1 create`로 실제 id 교체.
+      "database_id": "local-placeholder",
+      "migrations_dir": "./migrations",
+    },
+  ],
 }

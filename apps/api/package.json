@@ -5,14 +5,25 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "migrate:local": "wrangler d1 migrations apply workout --local"
   },
   "dependencies": {
+    "@workout/contracts": "workspace:*",
+    "drizzle-orm": "^0.45.2",
     "hono": "^4.6.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250520.0",
+    "@workout/eslint-config": "workspace:*",
+    "drizzle-kit": "^0.31.10",
+    "eslint": "^9.0.0",
     "typescript": "^5.5.0",
+    "vitest": "^2.1.0",
     "wrangler": "^4.86.0"
   }
 }

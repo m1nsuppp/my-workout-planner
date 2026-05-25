@@ -1,9 +1,9 @@
-import { Hono } from 'hono';
+import { createApp } from './app';
+import { createD1RoutineRepository } from './routines/d1-repository';
+import { createRoutineService } from './routines/service';
 
-const app = new Hono();
-
-app.get('/api/hello', (c) => {
-  return c.json({ message: 'hello' });
+const app = createApp({
+  routineService: (env) => createRoutineService(createD1RoutineRepository(env.DB)),
 });
 
 export default app;
