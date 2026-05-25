@@ -3,7 +3,7 @@ import { GoalSchema, MuscleGroupSchema, RoutineIdSchema, SplitTypeSchema } from 
 
 // 루틴의 운동 = "목표 범위"만 가짐. 구체 수치는 계획에서 확정.
 export const RoutineExerciseSchema = z.object({
-  name: z.string(),
+  name: z.string().min(1),
   muscleGroups: z.array(MuscleGroupSchema),
   targetSets: z.number().int().positive(),
   targetRepRange: z.tuple([z.number().int().positive(), z.number().int().positive()]),
@@ -12,7 +12,7 @@ export type RoutineExercise = z.infer<typeof RoutineExerciseSchema>;
 
 // 분할의 각 "날". 요일 고정이 아니라 순서(배열 인덱스)로 소화한다.
 export const RoutineDaySchema = z.object({
-  label: z.string(), // "상체 A"
+  label: z.string().min(1), // "상체 A"
   exercises: z.array(RoutineExerciseSchema),
 });
 export type RoutineDay = z.infer<typeof RoutineDaySchema>;
