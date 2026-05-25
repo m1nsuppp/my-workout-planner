@@ -15,14 +15,14 @@ export const ApiFailureSchema = z.object({
 });
 export type ApiFailure = z.infer<typeof ApiFailureSchema>;
 
-// 성공 봉투 스키마 빌더 — data 스키마를 감싼다.
-export function apiSuccessSchema<T extends z.ZodTypeAny>(data: T) {
+// 성공 봉투 스키마를 만든다 — data 스키마를 감싼다.
+export function createApiSuccessSchema<T extends z.ZodTypeAny>(data: T) {
   return z.object({ ok: z.literal(true), data });
 }
 
-// 응답 봉투 스키마 빌더 (성공 | 실패)
-export function apiResponseSchema<T extends z.ZodTypeAny>(data: T) {
-  return z.discriminatedUnion('ok', [apiSuccessSchema(data), ApiFailureSchema]);
+// 응답 봉투 스키마를 만든다 (성공 | 실패)
+export function createApiResponseSchema<T extends z.ZodTypeAny>(data: T) {
+  return z.discriminatedUnion('ok', [createApiSuccessSchema(data), ApiFailureSchema]);
 }
 
 export type ApiSuccess<T> = { ok: true; data: T };

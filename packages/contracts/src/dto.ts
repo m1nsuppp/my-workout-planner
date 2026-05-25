@@ -9,7 +9,7 @@ import {
   PlannedSetSchema,
 } from './plan';
 import { ApplyableChangeSchema, CoachResponseSchema } from './coach';
-import { apiResponseSchema } from './envelope';
+import { createApiResponseSchema } from './envelope';
 
 // 이 패키지의 유일한 공개 표면 = 엔드포인트 계약.
 // - *RequestDto  : 요청 본문 (클라가 아는 것만)
@@ -29,20 +29,20 @@ export type RoutineChatResultDto = z.infer<typeof RoutineChatResultDto>;
 export const CreateRoutineRequestDto = RoutineDraftSchema;
 export type CreateRoutineRequestDto = z.infer<typeof CreateRoutineRequestDto>;
 
-export const CreateRoutineResponseDto = apiResponseSchema(RoutineSchema);
+export const CreateRoutineResponseDto = createApiResponseSchema(RoutineSchema);
 export type CreateRoutineResponseDto = z.infer<typeof CreateRoutineResponseDto>;
 
-export const ListRoutinesResponseDto = apiResponseSchema(z.array(RoutineSchema));
+export const ListRoutinesResponseDto = createApiResponseSchema(z.array(RoutineSchema));
 export type ListRoutinesResponseDto = z.infer<typeof ListRoutinesResponseDto>;
 
-export const GetRoutineResponseDto = apiResponseSchema(RoutineSchema);
+export const GetRoutineResponseDto = createApiResponseSchema(RoutineSchema);
 export type GetRoutineResponseDto = z.infer<typeof GetRoutineResponseDto>;
 
 // ── 계획 ───────────────────────────────
-export const ListPlansResponseDto = apiResponseSchema(z.array(PlanSummarySchema));
+export const ListPlansResponseDto = createApiResponseSchema(z.array(PlanSummarySchema));
 export type ListPlansResponseDto = z.infer<typeof ListPlansResponseDto>;
 
-export const NextDayResponseDto = apiResponseSchema(
+export const NextDayResponseDto = createApiResponseSchema(
   z.object({ routineDayId: z.string(), label: z.string() }),
 );
 export type NextDayResponseDto = z.infer<typeof NextDayResponseDto>;
@@ -62,10 +62,10 @@ export type PlanChatResultDto = z.infer<typeof PlanChatResultDto>;
 export const CreatePlanRequestDto = PlanDraftSchema;
 export type CreatePlanRequestDto = z.infer<typeof CreatePlanRequestDto>;
 
-export const CreatePlanResponseDto = apiResponseSchema(PlanSchema);
+export const CreatePlanResponseDto = createApiResponseSchema(PlanSchema);
 export type CreatePlanResponseDto = z.infer<typeof CreatePlanResponseDto>;
 
-export const GetPlanResponseDto = apiResponseSchema(PlanSchema);
+export const GetPlanResponseDto = createApiResponseSchema(PlanSchema);
 export type GetPlanResponseDto = z.infer<typeof GetPlanResponseDto>;
 
 // 상태 전이 요청 — scheduled는 생성 시점 값이라 요청으로 못 보냄(역전이 금지).
@@ -82,7 +82,7 @@ export const UpdateSetRequestDto = z.object({
 });
 export type UpdateSetRequestDto = z.infer<typeof UpdateSetRequestDto>;
 
-export const UpdateSetResponseDto = apiResponseSchema(PlannedSetSchema);
+export const UpdateSetResponseDto = createApiResponseSchema(PlannedSetSchema);
 export type UpdateSetResponseDto = z.infer<typeof UpdateSetResponseDto>;
 
 export const CoachRequestDto = historyInput;
@@ -97,5 +97,5 @@ export const CoachApplyRequestDto = z.object({
 });
 export type CoachApplyRequestDto = z.infer<typeof CoachApplyRequestDto>;
 
-export const CoachApplyResponseDto = apiResponseSchema(PlanSchema);
+export const CoachApplyResponseDto = createApiResponseSchema(PlanSchema);
 export type CoachApplyResponseDto = z.infer<typeof CoachApplyResponseDto>;
