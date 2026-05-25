@@ -43,12 +43,13 @@
 |---|---|---|---|
 | GET | `/plans?from=&to=` | 기간 내 계획(캘린더·오늘 카드) | → `PlanSummary[]` |
 | GET | `/routines/:id/next-day` | 다음 차례 Day 제안 | → `{ routineDayId, label }` |
-| POST | `/plans/chat` | 대화 한 턴 → 계획 제안(과부하) | `{ context: PlanGenContext, history }` → **SSE**: `delta`×N + `result`=`PlanProposal` |
+| POST | `/plans/chat` | 대화 한 턴 → 계획 제안(과부하) | `{ routineId, routineDayLabel, date, history }` → **SSE**: `delta`×N + `result`=`PlanProposal` |
 | POST | `/plans` | 제안된 계획 확정(영속) | `PlanDraft` → `Plan` |
 | GET | `/plans/:id` | 계획 상세 | → `Plan` |
 | PATCH | `/plans/:id/status` | 상태 전이(시작/종료) | `{ status }` → `Plan` |
 
-> `next-day`: 데이터 모델의 "직전 완료 Day의 다음 order_index" 계산. 서버가 자동 제시, 사용자가 다른 Day 고르면 `PlanGenContext.routineDayLabel`로 덮어씀.
+> `next-day`: 데이터 모델의 "직전 완료 Day의 다음 order_index" 계산. 서버가 자동 제시, 사용자가 다른 Day 고르면 `/plans/chat` 요청의 `routineDayLabel`로 덮어씀.
+> `/plans/chat`은 클라가 식별자(`routineId`/`routineDayLabel`/`date`)만 보내고, 과부하 기록(`OverloadContext`)은 **서버가 DB에서 조립**한다(계약에 노출 안 함).
 > `status` 전이는 `scheduled→in_progress→completed`만 허용. 역전이(특히 `completed→`) reject.
 
 ### 운동 실행 / 코치 (S7 / S8)
@@ -76,21 +77,13 @@
 >
 > `actual` 정정은 `completed` 계획에도 허용(데이터 모델 결정), `status` 되돌리기는 불가.
 
-## 응답 보조 타입
+## 타입의 거처
+
+- **계약(`@workout/contracts`)**: 경계로 오가는 것 — `PlanSummary`, `ChatMessage`, 각 `*RequestDto`/`*ResponseDto`/`*ResultDto`, 봉투, 값 타입.
+- **서버 내부(`apps/api`)**: 클라가 몰라도 되는 것 — `PlanGenContext`/`OverloadContext`(과부하 기록을 DB에서 조립), `LiveSessionView`(코치에 넘길 세션 스냅샷). 계약에 노출하지 않는다.
 
 ```ts
-// 캘린더/오늘 카드용 경량 요약 (전체 Plan은 무거움)
-interface PlanSummary {
-  id: PlanId;
-  date: ISODate;
-  status: PlanStatus;
-  routineDayLabel: string;
-  exerciseCount: number;
-}
-
-interface ChatMessage { role: 'user' | 'assistant'; content: string; }
-
-// 코치에 넘길 현재 세션 스냅샷 (LLM 컨텍스트)
+// 서버 내부 — 코치에 넘길 현재 세션 스냅샷 (LLM 컨텍스트)
 interface LiveSessionView {
   planId: PlanId;
   exercises: PlanExercise[]; // 목표 + 지금까지의 actual
