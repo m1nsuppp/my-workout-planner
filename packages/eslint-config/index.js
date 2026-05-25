@@ -32,6 +32,10 @@ const conventionPlugin = {
  * */
 export const config = [
   {
+    // 빌드·도구 산출물은 린트 대상에서 제외.
+    ignores: ['**/dist/**', '**/coverage/**', '**/.wrangler/**'],
+  },
+  {
     files: ['**/*.test.ts', '**/*.test.tsx'],
     plugins: { convention: conventionPlugin },
     rules: { 'convention/no-test-suffix': 'error' },
