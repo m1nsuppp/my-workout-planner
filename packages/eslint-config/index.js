@@ -2,11 +2,40 @@ import loveConfig from 'eslint-config-love';
 import eslintConfigPrettier from 'eslint-config-prettier';
 
 /**
+ * 테스트 파일은 *.test 대신 *.spec 확장자를 쓰도록 강제하는 로컬 룰.
+ * 파일 경로만 보면 되므로 외부 플러그인 없이 context.filename으로 검사한다.
+ */
+const conventionPlugin = {
+  rules: {
+    'no-test-suffix': {
+      meta: {
+        type: 'problem',
+        messages: { useSpec: '테스트 파일은 *.test가 아니라 *.spec 확장자를 쓰세요.' },
+      },
+      create(context) {
+        return {
+          Program(node) {
+            if (/\.test\.tsx?$/.test(context.filename)) {
+              context.report({ node, messageId: 'useSpec' });
+            }
+          },
+        };
+      },
+    },
+  },
+};
+
+/**
  * A shared ESLint configuration for the repository.
  *
  * @type {Array<import("eslint").Linter.Config>}
  * */
 export const config = [
+  {
+    files: ['**/*.test.ts', '**/*.test.tsx'],
+    plugins: { convention: conventionPlugin },
+    rules: { 'convention/no-test-suffix': 'error' },
+  },
   {
     ...loveConfig,
     files: ['**/*.ts', '**/*.tsx'],
@@ -51,6 +80,17 @@ export const config = [
   {
     rules: {
       curly: ['error', 'all'],
+    },
+  },
+  {
+    // 테스트는 공개 동작만 검증한다. Response.json(): any 등과 싸우는 앱 수준 엄격함은 완화.
+    files: ['**/*.spec.ts', '**/*.spec.tsx'],
+    rules: {
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-magic-numbers': 'off',
     },
   },
 ];
