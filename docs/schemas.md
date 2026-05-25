@@ -196,11 +196,12 @@ interface CoachResponse {
   change: CoachChange | null;
 }
 
+// applying(plan을 변형, /coach/apply가 처리) vs advisory(변형 없음, 클라가 처리)
 type CoachChange =
-  | SubstituteExercise // 운동 교체 (자리 없음/장비 없음)
-  | AdjustLoad         // 부하 하향 (컨디션 난조)
-  | Rest               // 휴식 권유
-  | EndSession;        // 조기 종료
+  | SubstituteExercise // [applying] 운동 교체 (자리 없음/장비 없음)
+  | AdjustLoad         // [applying] 부하 하향 (컨디션 난조)
+  | Rest               // [advisory] 휴식 권유 — 타이머만, 영속 변경 없음
+  | EndSession;        // [advisory] 조기 종료 — 실제 종료는 PATCH /plans/:id/status로(책임 분리)
 
 interface SubstituteExercise {
   kind: 'substitute';
@@ -214,15 +215,16 @@ interface SubstituteExercise {
 interface AdjustLoad {
   kind: 'adjust_load';
   targetExerciseName: string;
-  weightFactor: number; // 무게 배율. z.number().min(0).max(1). 예: 0.8 = 20% 감량
+  weightFactor: number; // 무게 배율. z.number().min(0.5).max(1). 예: 0.8 = 20% 감량 (하한 0.5)
   repsDelta?: number;   // 횟수 증감. z.number().int().max(0). 예: -2
-  dropSets?: number;    // 남은 세트 수 줄이기. z.number().int().min(0)
+  dropSets?: number;    // 남은 세트 수 줄이기. z.number().int().min(0). 적용 시 ≤ 남은 세트 수
   reason: string;
 }
-// 적용 규칙(서버):
+// 적용 규칙(서버 /coach/apply 가드):
 //  - 남은(미수행) 세트에만 적용. 이미 완료된 세트의 actual은 불변.
 //  - weightFactor 적용 후 2.5kg 단위로 반올림(roundToPlate). 운동별 step은 추후.
 //  - parse 단계에서 상향 시도(>1, repsDelta>0)는 reject(throw).
+//  - 멱등성 키로 중복 적용 차단(재적용 시 weightFactor 누적 곱 방지).
 
 interface Rest {
   kind: 'rest';
