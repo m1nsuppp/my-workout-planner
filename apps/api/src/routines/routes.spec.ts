@@ -51,6 +51,9 @@ class FakeRoutineService implements RoutineService {
 
 const appWith = (opts: FakeOpts = {}) => createApp({ routineService: () => new FakeRoutineService(opts) });
 
+const devEnv = { ENVIRONMENT: 'development' };
+const prodEnv = { ENVIRONMENT: 'production' };
+
 const validBody = {
   name: '주 4회 상하체 분할',
   goal: 'hypertrophy',
@@ -64,12 +67,16 @@ const validBody = {
   ],
 };
 
-const postRoutine = async (opts: FakeOpts, body: unknown, userId = 'u1') =>
-  await appWith(opts).request('/routines', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(userId !== '' ? { 'x-user-id': userId } : {}) },
-    body: JSON.stringify(body),
-  });
+const postRoutine = async (opts: FakeOpts, body: unknown, userId = 'u1', env = devEnv) =>
+  await appWith(opts).request(
+    '/routines',
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(userId !== '' ? { 'x-user-id': userId } : {}) },
+      body: JSON.stringify(body),
+    },
+    env,
+  );
 
 describe('POST /routines', () => {
   it('유효 요청 → 201 + ok 봉투', async () => {
@@ -106,13 +113,20 @@ describe('POST /routines', () => {
     const res = await postRoutine({}, validBody, '');
     expect(res.status).toBe(401);
   });
+
+  it('프로덕션에선 x-user-id 헤더를 신뢰하지 않아 401', async () => {
+    const res = await postRoutine({}, validBody, 'u1', prodEnv);
+    expect(res.status).toBe(401);
+  });
 });
 
 describe('GET /routines', () => {
   it('목록 → 200 + 배열', async () => {
-    const res = await appWith({ records: [sampleRecord] }).request('/routines', {
-      headers: { 'x-user-id': 'u1' },
-    });
+    const res = await appWith({ records: [sampleRecord] }).request(
+      '/routines',
+      { headers: { 'x-user-id': 'u1' } },
+      devEnv,
+    );
     expect(res.status).toBe(200);
     const json = ListRoutinesResponseDto.parse(await res.json());
     if (json.ok) {
@@ -121,23 +135,27 @@ describe('GET /routines', () => {
   });
 
   it('인증 없음 → 401', async () => {
-    const res = await appWith().request('/routines');
+    const res = await appWith().request('/routines', undefined, devEnv);
     expect(res.status).toBe(401);
   });
 });
 
 describe('GET /routines/:id', () => {
   it('존재 → 200', async () => {
-    const res = await appWith({ found: sampleRecord }).request('/routines/r1', {
-      headers: { 'x-user-id': 'u1' },
-    });
+    const res = await appWith({ found: sampleRecord }).request(
+      '/routines/r1',
+      { headers: { 'x-user-id': 'u1' } },
+      devEnv,
+    );
     expect(res.status).toBe(200);
   });
 
   it('없음 → 404 NOT_FOUND', async () => {
-    const res = await appWith({ found: null }).request('/routines/nope', {
-      headers: { 'x-user-id': 'u1' },
-    });
+    const res = await appWith({ found: null }).request(
+      '/routines/nope',
+      { headers: { 'x-user-id': 'u1' } },
+      devEnv,
+    );
     expect(res.status).toBe(404);
     const json = GetRoutineResponseDto.parse(await res.json());
     expect(json.ok).toBe(false);

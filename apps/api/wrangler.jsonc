@@ -4,6 +4,10 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-05-01",
   "compatibility_flags": ["nodejs_compat"],
+  // 기본(로컬 dev) 환경. 인증 미구현 placeholder가 프로덕션에 새지 않도록 환경을 구분한다.
+  "vars": {
+    "ENVIRONMENT": "development",
+  },
   "d1_databases": [
     {
       "binding": "DB",
@@ -13,4 +17,11 @@
       "migrations_dir": "./migrations",
     },
   ],
+  "env": {
+    "production": {
+      "vars": {
+        "ENVIRONMENT": "production",
+      },
+    },
+  },
 }
