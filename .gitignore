@@ -51,6 +51,9 @@ out/
 coverage/
 *.log
 
+# ---- Eval 산출물 ----
+EVAL_REPORT.md
+
 # ---- Editor / IDE ----
 .idea/
 .vscode/*
