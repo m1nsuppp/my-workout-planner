@@ -7,6 +7,9 @@
   // 기본(로컬 dev) 환경. 인증 미구현 placeholder가 프로덕션에 새지 않도록 환경을 구분한다.
   "vars": {
     "ENVIRONMENT": "development",
+    // OAuth 비밀 아님 — CLIENT_SECRET은 Worker Secret(.dev.vars). 원격 배포 전 실제 값으로 교체.
+    "GOOGLE_CLIENT_ID": "local-placeholder",
+    "OAUTH_REDIRECT_URI": "http://localhost:8787/auth/google/callback",
   },
   "d1_databases": [
     {

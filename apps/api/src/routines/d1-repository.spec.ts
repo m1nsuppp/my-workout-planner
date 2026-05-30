@@ -12,13 +12,20 @@ const sample: NewRoutine = {
     {
       label: '상체 A',
       exercises: [
-        { name: '벤치프레스', muscleGroups: ['chest', 'triceps'], targetSets: 3, targetRepRange: [8, 12] },
+        {
+          name: '벤치프레스',
+          muscleGroups: ['chest', 'triceps'],
+          targetSets: 3,
+          targetRepRange: [8, 12],
+        },
         { name: '랫풀다운', muscleGroups: ['back'], targetSets: 4, targetRepRange: [10, 15] },
       ],
     },
     {
       label: '하체',
-      exercises: [{ name: '스쿼트', muscleGroups: ['legs', 'glutes'], targetSets: 5, targetRepRange: [5, 8] }],
+      exercises: [
+        { name: '스쿼트', muscleGroups: ['legs', 'glutes'], targetSets: 5, targetRepRange: [5, 8] },
+      ],
     },
   ],
 };
@@ -77,7 +84,12 @@ describe('createD1RoutineRepository (실제 D1)', () => {
       splitType: 'custom',
       daysPerWeek: 3,
       days: [
-        { label: '코어', exercises: [{ name: '플랭크', muscleGroups: [], targetSets: 3, targetRepRange: [30, 60] }] },
+        {
+          label: '코어',
+          exercises: [
+            { name: '플랭크', muscleGroups: [], targetSets: 3, targetRepRange: [30, 60] },
+          ],
+        },
       ],
     };
     const created = await repo.create('u1', input);
@@ -88,7 +100,13 @@ describe('createD1RoutineRepository (실제 D1)', () => {
 
   it('Day가 없는 루틴도 저장·복원된다 (day/exercise insert 생략 분기)', async () => {
     const repo = createD1RoutineRepository(env.DB);
-    const input: NewRoutine = { name: '빈 루틴', goal: 'strength', splitType: 'custom', daysPerWeek: 1, days: [] };
+    const input: NewRoutine = {
+      name: '빈 루틴',
+      goal: 'strength',
+      splitType: 'custom',
+      daysPerWeek: 1,
+      days: [],
+    };
     const created = await repo.create('u1', input);
     const found = await repo.findById('u1', created.id);
 

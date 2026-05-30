@@ -10,4 +10,9 @@ declare global {
       TEST_MIGRATIONS: D1Migration[];
     }
   }
+
+  // Workers 런타임의 Headers.getSetCookie()를 타입에 알린다(workers-types 미수록).
+  interface Headers {
+    getSetCookie: () => string[];
+  }
 }

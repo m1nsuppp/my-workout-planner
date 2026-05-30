@@ -18,7 +18,9 @@ const sampleRecord: RoutineRecord = {
   days: [
     {
       label: '상체 A',
-      exercises: [{ name: '벤치프레스', muscleGroups: ['chest'], targetSets: 3, targetRepRange: [8, 12] }],
+      exercises: [
+        { name: '벤치프레스', muscleGroups: ['chest'], targetSets: 3, targetRepRange: [8, 12] },
+      ],
     },
   ],
 };
@@ -49,7 +51,18 @@ class FakeRoutineService implements RoutineService {
   }
 }
 
-const appWith = (opts: FakeOpts = {}) => createApp({ routineService: () => new FakeRoutineService(opts) });
+// 이 스위트는 routine 라우트만 검증한다. auth deps는 호출되지 않는 더미.
+const dummyAuth = {
+  begin: async () => ({ state: '', verifier: '', authorizeUrl: '' }),
+  complete: async () => ({ sid: '', expiresAt: '' }),
+  logout: async () => undefined,
+};
+const appWith = (opts: FakeOpts = {}) =>
+  createApp({
+    routineService: () => new FakeRoutineService(opts),
+    authService: () => dummyAuth,
+    appRedirectPath: '/',
+  });
 
 const devEnv = { ENVIRONMENT: 'development' };
 const prodEnv = { ENVIRONMENT: 'production' };
@@ -62,7 +75,9 @@ const validBody = {
   days: [
     {
       label: '상체 A',
-      exercises: [{ name: '벤치프레스', muscleGroups: ['chest'], targetSets: 3, targetRepRange: [8, 12] }],
+      exercises: [
+        { name: '벤치프레스', muscleGroups: ['chest'], targetSets: 3, targetRepRange: [8, 12] },
+      ],
     },
   ],
 };
@@ -72,7 +87,10 @@ const postRoutine = async (opts: FakeOpts, body: unknown, userId = 'u1', env = d
     '/routines',
     {
       method: 'POST',
-      headers: { 'content-type': 'application/json', ...(userId !== '' ? { 'x-user-id': userId } : {}) },
+      headers: {
+        'content-type': 'application/json',
+        ...(userId !== '' ? { 'x-user-id': userId } : {}),
+      },
       body: JSON.stringify(body),
     },
     env,
@@ -100,7 +118,10 @@ describe('POST /routines', () => {
   });
 
   it('도메인 규칙 위반(service throw) → 422 ROUTINE_INVALID + issues', async () => {
-    const res = await postRoutine({ createError: new RoutineValidationError(['Day가 없습니다.']) }, validBody);
+    const res = await postRoutine(
+      { createError: new RoutineValidationError(['Day가 없습니다.']) },
+      validBody,
+    );
     expect(res.status).toBe(422);
     const json = CreateRoutineResponseDto.parse(await res.json());
     if (!json.ok) {
