@@ -9,7 +9,7 @@
 - **주 저장소: D1(SQLite)**. 계획/기록 조회·집계와 "직전 동일 Day 기록" 쿼리에 적합.
 - 라이브 세션(운동 *중*)도 별도 저장소 없이 `plans.status='in_progress'`로 표현. (실시간 협업 필요해지면 DO 도입 — 현재 불필요)
 - **ID**: ULID 문자열(`TEXT PRIMARY KEY`). 시간순 정렬 가능.
-- **인증/인가는 MVP 범위**(간단 로그인). `users` 테이블을 우리가 보유하고, 모든 사용자 소유 데이터는 `user_id` FK로 연결한다. 인증 흐름(OAuth/세션) 상세는 별도 문서에서.
+- **인증/인가는 MVP 범위**(간단 로그인). `users` 테이블을 우리가 보유하고, 모든 사용자 소유 데이터는 `user_id`로 연결한다(FK는 미사용, 무결성은 앱 레벨). 다중 OAuth provider 대비로 `users`는 `(provider, provider_user_id)` 유니크. 인증 흐름(Google OAuth + D1 서버 세션) 상세·구현은 `docs/plans/PLAN_oauth-auth.md`.
 - 무게: `REAL`(kg). 2.5kg 증분은 앱에서 반올림. 🟡 정밀도 이슈 시 정수 그램(`INTEGER`)로 전환 검토.
 
 ## ERD (개념)

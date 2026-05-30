@@ -216,7 +216,7 @@ pnpm --filter api typecheck
 
 **Goal**: `auth.ts`가 세션 기반으로 동작하고, 기존 루틴 CRUD가 세션 인증으로 회귀 없이 통과한다. 프로덕션에서 실제 인증이 동작한다.
 **Estimated Time**: 2 hours
-**Status**: ⏳ Pending
+**Status**: ✅ Done — tsc·lint clean, test 55/55, 커버리지 stmt 95.25%/branch 94.28%(auth 99%). getUserId 환경 분기 제거(세션이 fail-closed), x-user-id stub 제거. 실 Google 자격증명으로의 end-to-end 수동 검증은 사용자 몫(.dev.vars 필요).
 
 #### Tasks
 
