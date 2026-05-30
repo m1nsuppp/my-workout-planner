@@ -14,7 +14,9 @@ export default defineConfig({
     tanstackRouter({
       target: 'react',
       autoCodeSplitting: true,
-      generatedRouteTree: 'src/route-tree.gen.ts',
+      // react 코드는 src/app 아래로 모은다 — 라우트·생성물도 그 안에 둔다.
+      routesDirectory: 'src/app/routes',
+      generatedRouteTree: 'src/app/route-tree.gen.ts',
     }),
     react(),
   ],
