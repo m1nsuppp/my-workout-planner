@@ -17,7 +17,11 @@ export default defineConfig(async () => {
           miniflare: { bindings: { TEST_MIGRATIONS: migrations } },
         }),
       ],
-      test: { setupFiles: ['./test/apply-migrations.ts'] },
+      test: {
+        setupFiles: ['./test/apply-migrations.ts'],
+        // 마이그레이션은 api 고유 산출물 — 측정 제외는 여기서 정한다(공유 base 아님).
+        coverage: { exclude: ['**/migrations/**'] },
+      },
     }),
   );
 });

@@ -14,7 +14,6 @@ export const baseConfig = defineConfig({
         '**/*.config.*',
         '**/*.spec.*',
         '**/*.test.*',
-        '**/migrations/**',
       ],
     },
   },
