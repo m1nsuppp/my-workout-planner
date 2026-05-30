@@ -23,18 +23,21 @@ const dummyRoutine: RoutineService = {
   get: async () => null,
 };
 
-const app = createApp({
-  routineService: () => dummyRoutine,
-  // routine 인증은 이 스위트에서 쓰이지 않는 더미.
-  sessionRepository: () => ({
-    create: async (s) => ({ id: '', ...s, createdAt: '' }),
-    findValid: async () => null,
-    delete: async () => undefined,
-  }),
-  now: () => new Date('2026-05-30T00:00:00.000Z'),
-  authService: () => fakeAuth,
-  appRedirectPath: '/home',
-});
+// authService만 바꿔 끼우는 헬퍼. routine 인증 더미는 이 스위트에서 쓰이지 않는다.
+const makeApp = (authService: AuthService) =>
+  createApp({
+    routineService: () => dummyRoutine,
+    sessionRepository: () => ({
+      create: async (s) => ({ id: '', ...s, createdAt: '' }),
+      findValid: async () => null,
+      delete: async () => undefined,
+    }),
+    now: () => new Date('2026-05-30T00:00:00.000Z'),
+    authService: () => authService,
+    appRedirectPath: '/home',
+  });
+
+const app = makeApp(fakeAuth);
 
 const env = { ENVIRONMENT: 'development' };
 
@@ -82,6 +85,27 @@ describe('GET /auth/google/callback', () => {
     const res = await app.request('/auth/google/callback?code=abc&state=st', undefined, env);
 
     expect(res.status).toBe(400);
+  });
+
+  it('complete 실패 → 400 + 임시 쿠키(state·verifier) 정리', async () => {
+    const failingAuth: AuthService = {
+      ...fakeAuth,
+      complete: async () => {
+        throw new Error('exchange failed');
+      },
+    };
+    const res = await makeApp(failingAuth).request(
+      '/auth/google/callback?code=abc&state=st',
+      { headers: { Cookie: 'oauth_state=st; oauth_verifier=vf' } },
+      env,
+    );
+
+    expect(res.status).toBe(400);
+    const temp = setCookies(res).filter(
+      (c) => c.startsWith('oauth_state=') || c.startsWith('oauth_verifier='),
+    );
+    expect(temp).toHaveLength(2);
+    expect(temp.every((c) => c.includes('Max-Age=0'))).toBe(true);
   });
 });
 

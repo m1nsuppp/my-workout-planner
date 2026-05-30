@@ -53,21 +53,29 @@ export function registerAuthRoutes(app: Hono<{ Bindings: Env }>, deps: AuthDeps)
       return c.json(failBody('INVALID_OAUTH_STATE', '잘못된 인증 요청입니다.'), Status.BAD_REQUEST);
     }
 
-    const { sid, expiresAt } = await deps
-      .authService(c.env)
-      .complete({ code, codeVerifier: verifier });
-
+    // state·verifier는 일회성 — 성공/실패와 무관하게 여기서 정리한다.
     deleteCookie(c, STATE_COOKIE, tempCookie);
     deleteCookie(c, VERIFIER_COOKIE, tempCookie);
-    setCookie(c, SID_COOKIE, sid, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'Lax',
-      path: '/',
-      expires: new Date(expiresAt),
-    });
 
-    return c.redirect(deps.appRedirectPath);
+    try {
+      const issued = await deps.authService(c.env).complete({ code, codeVerifier: verifier });
+
+      setCookie(c, SID_COOKIE, issued.sid, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'Lax',
+        path: '/',
+        expires: new Date(issued.expiresAt),
+      });
+
+      return c.redirect(deps.appRedirectPath);
+    } catch {
+      // 토큰 교환/신원 검증 실패는 외부 인증 실패로 보고 400으로 안내한다.
+      return c.json(
+        failBody('OAUTH_EXCHANGE_FAILED', '인증 처리에 실패했습니다.'),
+        Status.BAD_REQUEST,
+      );
+    }
   });
 
   app.post('/auth/logout', async (c) => {
