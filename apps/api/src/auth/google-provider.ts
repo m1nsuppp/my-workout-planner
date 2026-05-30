@@ -15,8 +15,8 @@ export interface GoogleConfig {
 
 // 토큰 응답 중 우리가 쓰는 것만. 나머지는 무시.
 const TokenResponseSchema = z.object({ id_token: z.string() });
-// id_token(JWT) payload 중 신원에 필요한 클레임.
-const IdTokenClaimsSchema = z.object({ email: z.string(), sub: z.string() });
+// id_token(JWT) payload 중 신원에 필요한 클레임. aud는 발급 대상(우리 client_id) 검증용.
+const IdTokenClaimsSchema = z.object({ email: z.string(), sub: z.string(), aud: z.string() });
 
 // fetch를 주입 가능하게 해서 테스트가 네트워크 없이 응답을 고정한다.
 export function createGoogleProvider(
@@ -59,7 +59,7 @@ export function createGoogleProvider(
 
       const { id_token: idToken } = TokenResponseSchema.parse(await res.json());
 
-      return claimsToIdentity(idToken);
+      return claimsToIdentity(idToken, config.clientId);
     },
   };
 }
@@ -67,8 +67,9 @@ export function createGoogleProvider(
 const JWT_PARTS = 3; // header.payload.signature
 const BASE64_BLOCK = 4;
 
-// id_token은 토큰 엔드포인트에서 TLS로 직접 받았으므로 서명 검증은 생략하고 payload만 디코드한다.
-function claimsToIdentity(idToken: string): OAuthIdentity {
+// id_token은 토큰 엔드포인트에서 TLS로 직접 받았으므로 서명 검증은 생략한다.
+// 단, aud(발급 대상)가 우리 client_id인지 확인해 다른 클라이언트용 토큰을 거부한다.
+function claimsToIdentity(idToken: string, expectedAud: string): OAuthIdentity {
   const parts = idToken.split('.');
   if (parts.length !== JWT_PARTS) {
     throw new Error('id_token 형식이 올바르지 않습니다.');
@@ -76,6 +77,10 @@ function claimsToIdentity(idToken: string): OAuthIdentity {
 
   const json = new TextDecoder().decode(base64UrlDecode(parts[1]));
   const claims = IdTokenClaimsSchema.parse(JSON.parse(json));
+
+  if (claims.aud !== expectedAud) {
+    throw new Error('id_token의 aud가 client_id와 일치하지 않습니다.');
+  }
 
   return { email: claims.email, providerUserId: claims.sub };
 }

@@ -33,7 +33,11 @@ describe('createGoogleProvider', () => {
 
   it('exchange는 토큰 응답의 id_token에서 email·sub를 신원으로 추출한다', async () => {
     const fakeFetch: typeof fetch = async () => {
-      const idToken = makeIdToken({ email: 'u@example.com', sub: 'google-sub-1' });
+      const idToken = makeIdToken({
+        email: 'u@example.com',
+        sub: 'google-sub-1',
+        aud: config.clientId,
+      });
 
       return new Response(JSON.stringify({ id_token: idToken }), { status: 200 });
     };
@@ -49,5 +53,20 @@ describe('createGoogleProvider', () => {
     const provider = createGoogleProvider(config, fakeFetch);
 
     await expect(provider.exchange({ code: 'bad', codeVerifier: 'v' })).rejects.toThrow();
+  });
+
+  it('id_token의 aud가 우리 client_id와 다르면 throw (다른 클라이언트용 토큰 거부)', async () => {
+    const fakeFetch: typeof fetch = async () => {
+      const idToken = makeIdToken({
+        email: 'u@example.com',
+        sub: 'google-sub-1',
+        aud: 'someone-elses-client',
+      });
+
+      return new Response(JSON.stringify({ id_token: idToken }), { status: 200 });
+    };
+    const provider = createGoogleProvider(config, fakeFetch);
+
+    await expect(provider.exchange({ code: 'c', codeVerifier: 'v' })).rejects.toThrow();
   });
 });
