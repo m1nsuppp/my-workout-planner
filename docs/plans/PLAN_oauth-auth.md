@@ -176,7 +176,7 @@ pnpm --filter api typecheck
 
 **Goal**: `/auth/google/start`·`/callback`·`/logout`이 동작하고, state CSRF 검증과 세션 쿠키 발급/폐기가 이뤄진다.
 **Estimated Time**: 3–4 hours
-**Status**: ⏳ Pending
+**Status**: ✅ Done — tsc·lint clean, test 51/51. service는 fake repo로, 라우트는 fake AuthService로 분리 검증. 세션 만료는 now 주입으로 제어.
 
 #### Tasks
 
