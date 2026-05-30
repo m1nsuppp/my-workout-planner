@@ -25,6 +25,13 @@ const dummyRoutine: RoutineService = {
 
 const app = createApp({
   routineService: () => dummyRoutine,
+  // routine 인증은 이 스위트에서 쓰이지 않는 더미.
+  sessionRepository: () => ({
+    create: async (s) => ({ id: '', ...s, createdAt: '' }),
+    findValid: async () => null,
+    delete: async () => undefined,
+  }),
+  now: () => new Date('2026-05-30T00:00:00.000Z'),
   authService: () => fakeAuth,
   appRedirectPath: '/home',
 });

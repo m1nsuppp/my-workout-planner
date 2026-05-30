@@ -5,6 +5,7 @@ import {
 } from '@workout/contracts';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../app';
+import type { SessionRepository } from '../auth/session-repository';
 import type { RoutineRecord } from './repository';
 import { RoutineValidationError, type RoutineService } from './service';
 
@@ -57,15 +58,29 @@ const dummyAuth = {
   complete: async () => ({ sid: '', expiresAt: '' }),
   logout: async () => undefined,
 };
+
+// 인증은 세션 쿠키(sid) 기반. VALID_SID만 userId 'u1'로 인증된다.
+const VALID_SID = 'valid-sid';
+const fakeSessionRepository: SessionRepository = {
+  create: async (s) => ({ id: VALID_SID, ...s, createdAt: '' }),
+  delete: async () => undefined,
+  findValid: async (id) =>
+    id === VALID_SID
+      ? { id, userId: 'u1', expiresAt: '2026-12-31T00:00:00.000Z', createdAt: '' }
+      : null,
+};
+
 const appWith = (opts: FakeOpts = {}) =>
   createApp({
     routineService: () => new FakeRoutineService(opts),
+    sessionRepository: () => fakeSessionRepository,
+    now: () => new Date('2026-05-30T00:00:00.000Z'),
     authService: () => dummyAuth,
     appRedirectPath: '/',
   });
 
 const devEnv = { ENVIRONMENT: 'development' };
-const prodEnv = { ENVIRONMENT: 'production' };
+const authed = { Cookie: `sid=${VALID_SID}` };
 
 const validBody = {
   name: '주 4회 상하체 분할',
@@ -82,18 +97,15 @@ const validBody = {
   ],
 };
 
-const postRoutine = async (opts: FakeOpts, body: unknown, userId = 'u1', env = devEnv) =>
+const postRoutine = async (opts: FakeOpts, body: unknown, authenticated = true) =>
   await appWith(opts).request(
     '/routines',
     {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        ...(userId !== '' ? { 'x-user-id': userId } : {}),
-      },
+      headers: { 'content-type': 'application/json', ...(authenticated ? authed : {}) },
       body: JSON.stringify(body),
     },
-    env,
+    devEnv,
   );
 
 describe('POST /routines', () => {
@@ -130,13 +142,8 @@ describe('POST /routines', () => {
     }
   });
 
-  it('인증 헤더 없음 → 401', async () => {
-    const res = await postRoutine({}, validBody, '');
-    expect(res.status).toBe(401);
-  });
-
-  it('프로덕션에선 x-user-id 헤더를 신뢰하지 않아 401', async () => {
-    const res = await postRoutine({}, validBody, 'u1', prodEnv);
+  it('세션 쿠키 없음 → 401', async () => {
+    const res = await postRoutine({}, validBody, false);
     expect(res.status).toBe(401);
   });
 });
@@ -145,7 +152,7 @@ describe('GET /routines', () => {
   it('목록 → 200 + 배열', async () => {
     const res = await appWith({ records: [sampleRecord] }).request(
       '/routines',
-      { headers: { 'x-user-id': 'u1' } },
+      { headers: authed },
       devEnv,
     );
     expect(res.status).toBe(200);
@@ -165,7 +172,7 @@ describe('GET /routines/:id', () => {
   it('존재 → 200', async () => {
     const res = await appWith({ found: sampleRecord }).request(
       '/routines/r1',
-      { headers: { 'x-user-id': 'u1' } },
+      { headers: authed },
       devEnv,
     );
     expect(res.status).toBe(200);
@@ -174,7 +181,7 @@ describe('GET /routines/:id', () => {
   it('없음 → 404 NOT_FOUND', async () => {
     const res = await appWith({ found: null }).request(
       '/routines/nope',
-      { headers: { 'x-user-id': 'u1' } },
+      { headers: authed },
       devEnv,
     );
     expect(res.status).toBe(404);

@@ -7,9 +7,12 @@ import { createD1RoutineRepository } from './routines/d1-repository';
 import { createRoutineService } from './routines/service';
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30일
+const now = (): Date => new Date();
 
 const app = createApp({
   routineService: (env) => createRoutineService(createD1RoutineRepository(env.DB)),
+  sessionRepository: (env) => createD1SessionRepository(env.DB),
+  now,
   authService: (env) =>
     createAuthService({
       provider: createGoogleProvider({
@@ -19,7 +22,7 @@ const app = createApp({
       }),
       userRepository: createD1UserRepository(env.DB),
       sessionRepository: createD1SessionRepository(env.DB),
-      now: () => new Date(),
+      now,
       sessionTtlMs: SESSION_TTL_MS,
     }),
   appRedirectPath: '/',

@@ -1,4 +1,4 @@
-import type { Hono } from 'hono';
+import type { Context, Hono } from 'hono';
 import {
   CreateRoutineRequestDto,
   CreateRoutineResponseDto,
@@ -7,17 +7,23 @@ import {
 } from '@workout/contracts';
 import type { Env } from '../env';
 import { getUserId } from '../auth';
+import type { SessionRepository } from '../auth/session-repository';
 import { Status, failBody, okBody } from '../response';
 import type { NewRoutine } from './repository';
 import { RoutineValidationError, type RoutineService } from './service';
 
 export interface RoutineDeps {
   routineService: (env: Env) => RoutineService;
+  sessionRepository: (env: Env) => SessionRepository;
+  now: () => Date;
 }
 
 export function registerRoutineRoutes(app: Hono<{ Bindings: Env }>, deps: RoutineDeps): void {
+  const authenticate = async (c: Context<{ Bindings: Env }>): Promise<string | null> =>
+    await getUserId(c, deps.sessionRepository(c.env), deps.now);
+
   app.post('/routines', async (c) => {
-    const userId = getUserId(c);
+    const userId = await authenticate(c);
     if (userId === null) {
       return c.json(failBody('UNAUTHENTICATED', '로그인이 필요합니다.'), Status.UNAUTHENTICATED);
     }
@@ -47,7 +53,7 @@ export function registerRoutineRoutes(app: Hono<{ Bindings: Env }>, deps: Routin
   });
 
   app.get('/routines', async (c) => {
-    const userId = getUserId(c);
+    const userId = await authenticate(c);
     if (userId === null) {
       return c.json(failBody('UNAUTHENTICATED', '로그인이 필요합니다.'), Status.UNAUTHENTICATED);
     }
@@ -58,7 +64,7 @@ export function registerRoutineRoutes(app: Hono<{ Bindings: Env }>, deps: Routin
   });
 
   app.get('/routines/:id', async (c) => {
-    const userId = getUserId(c);
+    const userId = await authenticate(c);
     if (userId === null) {
       return c.json(failBody('UNAUTHENTICATED', '로그인이 필요합니다.'), Status.UNAUTHENTICATED);
     }
