@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { createFetchHttpClient } from '../http/create-fetch-http-client';
 import { createRoutineRepository } from '../routines/create-repository';
 import { createRoutineService } from '../routines/create-service';
-import { RoutineServiceProvider } from '../routines/service-context';
+import { RoutineServiceProvider } from './contexts/routine-service-context';
 import { routeTree } from './route-tree.gen';
 
 const router = createRouter({ routeTree });

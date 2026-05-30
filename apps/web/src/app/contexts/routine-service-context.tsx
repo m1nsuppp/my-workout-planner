@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { ReactElement, ReactNode } from 'react';
-import type { RoutineService } from './service';
+import type { RoutineService } from '../../routines/service';
 
 // 루틴 service를 react에 잇는 어댑터 — 도메인별로 분리해, 화면 테스트 시
 // 다른 도메인 service까지 채울 필요 없이 이 Provider에 fake service 하나만 주면 된다.
