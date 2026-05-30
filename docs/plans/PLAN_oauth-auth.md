@@ -99,7 +99,7 @@ pnpm --filter api typecheck
 
 **Goal**: `users`·`sessions` 테이블, 마이그레이션, 그리고 두 리포지토리(포트 + D1 구현 + fake)가 동작한다.
 **Estimated Time**: 2–3 hours
-**Status**: ⏳ Pending
+**Status**: ✅ Done (커밋 9eac902) — tsc·lint 통과, test 33/33. fake repo는 소비처가 생기는 Phase 3에서 추가.
 
 #### Tasks
 
@@ -139,7 +139,7 @@ pnpm --filter api typecheck
 
 **Goal**: 라우트가 Google 세부를 모른 채 의존할 `OAuthProvider` 인터페이스와 Google 구현, state/PKCE 유틸이 동작한다.
 **Estimated Time**: 2–3 hours
-**Status**: ⏳ Pending
+**Status**: ✅ Done — tsc·lint clean, test 42/42. PKCE는 RFC 7636 테스트 벡터로 검증. id_token은 TLS 직수신이라 서명검증 생략(payload 디코드).
 
 #### Tasks
 
