@@ -2,8 +2,11 @@ import { RouterProvider, createRouter } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createFetchHttpClient } from '../http/create-fetch-http-client';
+import { createAuthRepository } from '../auth/create-repository';
+import { createAuthService } from '../auth/create-service';
 import { createRoutineRepository } from '../routines/create-repository';
 import { createRoutineService } from '../routines/create-service';
+import { AuthServiceProvider } from './contexts/auth-service-context';
 import { RoutineServiceProvider } from './contexts/routine-service-context';
 import { routeTree } from './route-tree.gen';
 
@@ -15,6 +18,7 @@ const router = createRouter({ routeTree });
 // baseUrl은 dev 프록시에선 빈 문자열, 서브도메인 분리 시 VITE_API_BASE_URL로 지정.
 const httpClient = createFetchHttpClient({ baseUrl: import.meta.env.VITE_API_BASE_URL ?? '' });
 const routineService = createRoutineService(createRoutineRepository(httpClient));
+const authService = createAuthService(createAuthRepository(httpClient));
 
 // 라우터 타입을 전역에 등록해 Link·navigate 등이 경로를 타입 체크하도록 한다.
 declare module '@tanstack/react-router' {
@@ -30,8 +34,10 @@ if (rootElement === null) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <RoutineServiceProvider service={routineService}>
-      <RouterProvider router={router} />
-    </RoutineServiceProvider>
+    <AuthServiceProvider service={authService}>
+      <RoutineServiceProvider service={routineService}>
+        <RouterProvider router={router} />
+      </RoutineServiceProvider>
+    </AuthServiceProvider>
   </StrictMode>,
 );

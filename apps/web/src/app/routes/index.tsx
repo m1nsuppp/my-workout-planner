@@ -1,15 +1,64 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import type { JSX } from 'react';
+import type { CurrentUser } from '../../auth/repository';
+import { useAuthService } from '../contexts/auth-service-context';
 
 export const Route = createFileRoute('/')({
   component: Home,
 });
 
+// 부팅 시 me()로 현재 사용자를 한 번 확정한다. 소비처가 이 화면뿐이라 여기 둔다
+// (두 번째 보호 화면이 생기면 상위로 올린다).
+type AuthState =
+  | { status: 'loading' }
+  | { status: 'anonymous' }
+  | { status: 'authenticated'; user: CurrentUser };
+
+function useCurrentUser(): AuthState {
+  const authService = useAuthService();
+  const [state, setState] = useState<AuthState>({ status: 'loading' });
+
+  useEffect(() => {
+    let alive = true;
+    void authService.me().then((user) => {
+      if (!alive) {
+        return;
+      }
+      setState(user === null ? { status: 'anonymous' } : { status: 'authenticated', user });
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, [authService]);
+
+  return state;
+}
+
 function Home(): JSX.Element {
+  const auth = useCurrentUser();
+
   return (
     <main>
       <h1>my-workout-planner</h1>
-      <p>스캐폴드 완료. 인증·화면은 후속 작업에서 연결한다.</p>
+      {auth.status === 'loading' && <p>불러오는 중…</p>}
+      {auth.status === 'anonymous' && (
+        // OAuth는 전체 페이지 리다이렉트라 SPA navigate가 아닌 <a>를 쓴다.
+        <a href="/auth/google/start">Google로 로그인</a>
+      )}
+      {auth.status === 'authenticated' && (
+        <>
+          <p>{auth.user.email} 님으로 로그인됨</p>
+          {/* 로그아웃은 sid 쿠키 정리 후 리다이렉트 — 브라우저가 302를 따라가도록 form POST. */}
+          <form
+            method="post"
+            action="/auth/logout"
+          >
+            <button type="submit">로그아웃</button>
+          </form>
+        </>
+      )}
     </main>
   );
 }
