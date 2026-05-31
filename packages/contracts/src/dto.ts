@@ -19,6 +19,13 @@ import { createApiResponseSchema } from './envelope';
 
 const historyInput = z.object({ history: z.array(ChatMessageSchema) });
 
+// ── 인증 ───────────────────────────────
+// 현재 로그인 사용자. email은 표시용, id는 안정적 식별자. 세션(sid)은 httpOnly 쿠키라 계약에 없다.
+export const MeResponseDto = createApiResponseSchema(
+  z.object({ id: z.string(), email: z.string() }),
+);
+export type MeResponseDto = z.infer<typeof MeResponseDto>;
+
 // ── 루틴 ───────────────────────────────
 export const RoutineChatRequestDto = historyInput;
 export type RoutineChatRequestDto = z.infer<typeof RoutineChatRequestDto>;
