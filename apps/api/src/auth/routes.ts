@@ -9,13 +9,8 @@ import type { AuthService } from './service';
 export interface AuthDeps {
   authService: (env: Env) => AuthService;
   // 콜백 성공·로그아웃 후 돌아갈 앱 경로. web↔api 서브도메인 분리라 api 도메인이 아닌
-  // web(APP_ORIGIN)으로 보내야 한다 — 실제 redirect 시 APP_ORIGIN을 prefix로 붙인다.
+  // web(APP_ORIGIN)으로 보내야 한다 — redirect 시 APP_ORIGIN을 prefix로 붙인 절대 URL을 쓴다.
   appRedirectPath: string;
-}
-
-// 콜백/로그아웃 후 web 앱으로 돌려보낼 절대 URL. cross-origin이라 상대경로(api 도메인)면 안 된다.
-function appRedirectUrl(appOrigin: string, path: string): string {
-  return `${appOrigin}${path}`;
 }
 
 const SID_COOKIE = 'sid';
@@ -75,7 +70,7 @@ export function registerAuthRoutes(app: Hono<{ Bindings: Env }>, deps: AuthDeps)
         expires: new Date(issued.expiresAt),
       });
 
-      return c.redirect(appRedirectUrl(c.env.APP_ORIGIN, deps.appRedirectPath));
+      return c.redirect(`${c.env.APP_ORIGIN}${deps.appRedirectPath}`);
     } catch {
       // 토큰 교환/신원 검증 실패는 외부 인증 실패로 보고 400으로 안내한다.
       return c.json(
@@ -108,7 +103,7 @@ export function registerAuthRoutes(app: Hono<{ Bindings: Env }>, deps: AuthDeps)
 
     deleteCookie(c, SID_COOKIE, { path: '/' });
 
-    return c.redirect(appRedirectUrl(c.env.APP_ORIGIN, deps.appRedirectPath));
+    return c.redirect(`${c.env.APP_ORIGIN}${deps.appRedirectPath}`);
   });
 }
 
