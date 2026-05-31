@@ -25,6 +25,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // 리소스 API는 /api 아래로 모은다(SPA 클라이언트 라우트와 경로 충돌 방지). OAuth는 /auth.
       '/auth': { target: API_ORIGIN, changeOrigin: true },
       '/api': { target: API_ORIGIN, changeOrigin: true },
     },

@@ -13,19 +13,19 @@ export function createRoutineRepository(http: HttpClient): RoutineRepository {
     async list() {
       return unwrap(
         ListRoutinesResponseDto,
-        await http.request({ method: 'GET', path: '/routines' }),
+        await http.request({ method: 'GET', path: '/api/routines' }),
       );
     },
     async get(id) {
       return unwrap(
         GetRoutineResponseDto,
-        await http.request({ method: 'GET', path: `/routines/${id}` }),
+        await http.request({ method: 'GET', path: `/api/routines/${id}` }),
       );
     },
     async create(draft) {
       return unwrap(
         CreateRoutineResponseDto,
-        await http.request({ method: 'POST', path: '/routines', body: draft }),
+        await http.request({ method: 'POST', path: '/api/routines', body: draft }),
       );
     },
   };

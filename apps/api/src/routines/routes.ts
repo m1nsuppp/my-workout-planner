@@ -22,7 +22,7 @@ export function registerRoutineRoutes(app: Hono<{ Bindings: Env }>, deps: Routin
   const authenticate = async (c: Context<{ Bindings: Env }>): Promise<string | null> =>
     await getUserId(c, deps.sessionRepository(c.env), deps.now);
 
-  app.post('/routines', async (c) => {
+  app.post('/api/routines', async (c) => {
     const userId = await authenticate(c);
     if (userId === null) {
       return c.json(failBody('UNAUTHENTICATED', '로그인이 필요합니다.'), Status.UNAUTHENTICATED);
@@ -52,7 +52,7 @@ export function registerRoutineRoutes(app: Hono<{ Bindings: Env }>, deps: Routin
     }
   });
 
-  app.get('/routines', async (c) => {
+  app.get('/api/routines', async (c) => {
     const userId = await authenticate(c);
     if (userId === null) {
       return c.json(failBody('UNAUTHENTICATED', '로그인이 필요합니다.'), Status.UNAUTHENTICATED);
@@ -63,7 +63,7 @@ export function registerRoutineRoutes(app: Hono<{ Bindings: Env }>, deps: Routin
     return c.json(okBody(ListRoutinesResponseDto, records), Status.OK);
   });
 
-  app.get('/routines/:id', async (c) => {
+  app.get('/api/routines/:id', async (c) => {
     const userId = await authenticate(c);
     if (userId === null) {
       return c.json(failBody('UNAUTHENTICATED', '로그인이 필요합니다.'), Status.UNAUTHENTICATED);

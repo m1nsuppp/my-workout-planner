@@ -100,7 +100,7 @@ const validBody = {
 
 const postRoutine = async (opts: FakeOpts, body: unknown, authenticated = true) =>
   await appWith(opts).request(
-    '/routines',
+    '/api/routines',
     {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...(authenticated ? authed : {}) },
@@ -109,7 +109,7 @@ const postRoutine = async (opts: FakeOpts, body: unknown, authenticated = true) 
     devEnv,
   );
 
-describe('POST /routines', () => {
+describe('POST /api/routines', () => {
   it('유효 요청 → 201 + ok 봉투', async () => {
     const res = await postRoutine({}, validBody);
     expect(res.status).toBe(201);
@@ -149,10 +149,10 @@ describe('POST /routines', () => {
   });
 });
 
-describe('GET /routines', () => {
+describe('GET /api/routines', () => {
   it('목록 → 200 + 배열', async () => {
     const res = await appWith({ records: [sampleRecord] }).request(
-      '/routines',
+      '/api/routines',
       { headers: authed },
       devEnv,
     );
@@ -164,15 +164,15 @@ describe('GET /routines', () => {
   });
 
   it('인증 없음 → 401', async () => {
-    const res = await appWith().request('/routines', undefined, devEnv);
+    const res = await appWith().request('/api/routines', undefined, devEnv);
     expect(res.status).toBe(401);
   });
 });
 
-describe('GET /routines/:id', () => {
+describe('GET /api/routines/:id', () => {
   it('존재 → 200', async () => {
     const res = await appWith({ found: sampleRecord }).request(
-      '/routines/r1',
+      '/api/routines/r1',
       { headers: authed },
       devEnv,
     );
@@ -181,7 +181,7 @@ describe('GET /routines/:id', () => {
 
   it('없음 → 404 NOT_FOUND', async () => {
     const res = await appWith({ found: null }).request(
-      '/routines/nope',
+      '/api/routines/nope',
       { headers: authed },
       devEnv,
     );

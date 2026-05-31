@@ -18,7 +18,7 @@ const routine = { ...draft, id: 'r1', createdAt: '2026-05-01T00:00:00Z' };
 describe('RoutineRepository', () => {
   it('list는 성공 봉투의 data를 도메인 배열로 돌려준다', async () => {
     const http = createFakeHttpClient();
-    http.stub('GET', '/routines', { status: 200, body: { ok: true, data: [routine] } });
+    http.stub('GET', '/api/routines', { status: 200, body: { ok: true, data: [routine] } });
 
     const result = await createRoutineRepository(http).list();
 
@@ -27,7 +27,7 @@ describe('RoutineRepository', () => {
 
   it('create는 draft를 보내고 생성된 루틴을 돌려준다', async () => {
     const http = createFakeHttpClient();
-    http.stub('POST', '/routines', { status: 201, body: { ok: true, data: routine } });
+    http.stub('POST', '/api/routines', { status: 201, body: { ok: true, data: routine } });
 
     const result = await createRoutineRepository(http).create(draft);
 
@@ -36,7 +36,7 @@ describe('RoutineRepository', () => {
 
   it('실패 봉투는 code·status를 담은 ApiResponseError로 던진다', async () => {
     const http = createFakeHttpClient();
-    http.stub('GET', '/routines/missing', {
+    http.stub('GET', '/api/routines/missing', {
       status: 404,
       body: { ok: false, error: { code: 'NOT_FOUND', message: '루틴을 찾을 수 없습니다.' } },
     });
