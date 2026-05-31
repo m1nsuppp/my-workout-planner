@@ -143,7 +143,11 @@
 
 **Goal**: 보호된 `/routines` 라우트에서 `useRoutines`로 목록을 Tailwind 카드로 렌더한다.
 **Estimated Time**: 2h
-**Status**: ⏳ Pending
+**Status**: ✅ 완료 (2026-05-31)
+
+> 발견·해결: SPA 클라이언트 라우트 `/routines`와 api 경로가 같은 오리진에서 충돌(직접 진입 시 api JSON이 떴다).
+> 리소스 API를 `/api/routines`로 이동해 분리(`/auth/*`는 OAuth 전체 페이지 흐름이라 top-level 유지).
+> E2E 검증: 미로그인 진입→`/` 리다이렉트 / 인증 빈 상태 / 인증 loaded(카드) / create 경로까지 라이브 확인.
 
 #### Tasks
 
@@ -226,7 +230,7 @@ Phase 1·2에 각각 묶어, 되돌릴 때 `package.json`까지 함께 복원된
 
 - [x] Phase 1: Tailwind 셋업 + 모바일 쉘
 - [x] Phase 2: `useRoutines` 데이터 레이어
-- [ ] Phase 3: 화면 + 인증 가드
+- [x] Phase 3: 화면 + 인증 가드
 - [ ] Phase 4: 네비 연결 + 통합 회귀
 
 ---
