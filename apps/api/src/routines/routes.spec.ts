@@ -80,7 +80,8 @@ const appWith = (opts: FakeOpts = {}) =>
     appRedirectPath: '/',
   });
 
-const devEnv = { ENVIRONMENT: 'development' };
+// APP_ORIGIN은 CORS 미들웨어(web↔api 분리)가 요구한다 — routine 라우트도 이 미들웨어를 탄다.
+const devEnv = { ENVIRONMENT: 'development', APP_ORIGIN: 'http://localhost:5173' };
 const authed = { Cookie: `sid=${VALID_SID}` };
 
 const validBody = {

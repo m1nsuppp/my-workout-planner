@@ -8,6 +8,11 @@ export const Route = createFileRoute('/')({
   component: Home,
 });
 
+// 로그인/로그아웃은 fetch가 아닌 *브라우저 내비게이션*(OAuth 전체 페이지 리다이렉트)이라
+// http client(baseUrl)를 못 탄다. web↔api 서브도메인 분리라 api 절대 URL을 직접 가리킨다.
+// dev 프록시(단일 오리진)에선 빈 문자열 → 상대경로로 동작.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
+
 // 부팅 시 me()로 현재 사용자를 한 번 확정한다. 소비처가 이 화면뿐이라 여기 둔다
 // (두 번째 보호 화면이 생기면 상위로 올린다).
 type AuthState =
@@ -46,7 +51,7 @@ function Home(): JSX.Element {
       {auth.status === 'anonymous' && (
         // OAuth는 전체 페이지 리다이렉트라 SPA navigate가 아닌 <a>를 쓴다.
         <a
-          href="/auth/google/start"
+          href={`${API_BASE_URL}/auth/google/start`}
           className="rounded-lg bg-neutral-900 px-4 py-3 text-center font-medium text-white"
         >
           Google로 로그인
@@ -64,7 +69,7 @@ function Home(): JSX.Element {
           {/* 로그아웃은 sid 쿠키 정리 후 리다이렉트 — 브라우저가 302를 따라가도록 form POST. */}
           <form
             method="post"
-            action="/auth/logout"
+            action={`${API_BASE_URL}/auth/logout`}
           >
             <button
               type="submit"

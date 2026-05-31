@@ -66,7 +66,8 @@ describe('GET /auth/google/callback', () => {
     );
 
     expect(res.status).toBe(302);
-    expect(res.headers.get('location')).toBe('/home');
+    // 분리 구조 — 콜백 후 web(APP_ORIGIN) 절대 URL로 돌아간다(api 도메인 아님).
+    expect(res.headers.get('location')).toBe('http://localhost:5173/home');
     const sidCookie = setCookies(res).find((c) => c.startsWith('sid='));
     expect(sidCookie).toContain('sid=session-1');
     expect(sidCookie).toContain('HttpOnly');
