@@ -7,6 +7,8 @@
   // 기본(로컬 dev) 환경. 인증 미구현 placeholder가 프로덕션에 새지 않도록 환경을 구분한다.
   "vars": {
     "ENVIRONMENT": "development",
+    // 웹앱 오리진(logout 등 상태변경 POST의 Origin 검증 기준). 원격 배포 시 app.x.com으로 교체.
+    "APP_ORIGIN": "http://localhost:5173",
     // OAuth 비밀 아님(공개값) — CLIENT_SECRET만 Worker Secret(.dev.vars). 원격 배포 전 prod용으로 교체.
     "GOOGLE_CLIENT_ID": "633312286389-o8jr7gnhcavtfvfeg9vm37fop3bo0v64.apps.googleusercontent.com",
     // web(:5173) 오리진으로 콜백을 받아 sid 쿠키가 web에 박히게 한다(vite가 :8787로 프록시).
@@ -26,6 +28,8 @@
     "production": {
       "vars": {
         "ENVIRONMENT": "production",
+        // 원격 배포 전 실제 웹앱 오리진으로 교체(예: https://app.example.com).
+        "APP_ORIGIN": "https://app.example.com",
       },
     },
   },

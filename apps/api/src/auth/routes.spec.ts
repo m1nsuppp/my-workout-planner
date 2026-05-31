@@ -40,7 +40,7 @@ const makeApp = (authService: AuthService) =>
 
 const app = makeApp(fakeAuth);
 
-const env = { ENVIRONMENT: 'development' };
+const env = { ENVIRONMENT: 'development', APP_ORIGIN: 'http://localhost:5173' };
 
 const setCookies = (res: Response): string[] => res.headers.getSetCookie();
 const cookieNames = (res: Response) => setCookies(res).map((c) => c.split('=')[0]);
@@ -143,5 +143,26 @@ describe('POST /auth/logout', () => {
     expect(res.status).toBe(302);
     const sidCookie = setCookies(res).find((c) => c.startsWith('sid='));
     expect(sidCookie).toContain('Max-Age=0');
+  });
+
+  it('앱 오리진과 일치하는 Origin이면 정상 로그아웃한다', async () => {
+    const res = await app.request(
+      '/auth/logout',
+      { method: 'POST', headers: { Cookie: 'sid=session-1', Origin: 'http://localhost:5173' } },
+      env,
+    );
+
+    expect(res.status).toBe(302);
+  });
+
+  it('외부 Origin이면 403으로 차단한다(CSRF 2선)', async () => {
+    const res = await app.request(
+      '/auth/logout',
+      { method: 'POST', headers: { Cookie: 'sid=session-1', Origin: 'https://evil.example' } },
+      env,
+    );
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ ok: false, error: { code: 'FORBIDDEN_ORIGIN' } });
   });
 });

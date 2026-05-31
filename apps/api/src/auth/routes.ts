@@ -90,6 +90,11 @@ export function registerAuthRoutes(app: Hono<{ Bindings: Env }>, deps: AuthDeps)
   });
 
   app.post('/auth/logout', async (c) => {
+    // CSRF 2선 — sid는 SameSite=Lax(교차사이트 POST 차단)지만, 상태 변경 POST는 Origin도 확인한다.
+    if (isForeignOrigin(c.req.header('origin'), c.env.APP_ORIGIN)) {
+      return c.json(failBody('FORBIDDEN_ORIGIN', '허용되지 않은 출처입니다.'), Status.FORBIDDEN);
+    }
+
     const sid = getCookie(c, SID_COOKIE);
     if (sid !== undefined) {
       await deps.authService(c.env).logout(sid);
@@ -99,4 +104,9 @@ export function registerAuthRoutes(app: Hono<{ Bindings: Env }>, deps: AuthDeps)
 
     return c.redirect(deps.appRedirectPath);
   });
+}
+
+// Origin이 실려 왔는데 앱 오리진과 다르면 외부 출처(CSRF 의심). 없으면(same-origin 등) 통과시킨다.
+function isForeignOrigin(origin: string | undefined, appOrigin: string): boolean {
+  return origin !== undefined && origin !== appOrigin;
 }
