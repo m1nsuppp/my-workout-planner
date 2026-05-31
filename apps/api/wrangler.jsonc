@@ -19,18 +19,32 @@
     {
       "binding": "DB",
       "database_name": "workout",
-      // 로컬 개발/마이그레이션용 placeholder. 원격 배포 전 `wrangler d1 create`로 실제 id 교체.
-      "database_id": "local-placeholder",
+      "database_id": "fcf3b347-26f0-42f1-9807-b8a05888185c",
       "migrations_dir": "./migrations",
     },
   ],
   "env": {
     "production": {
+      // 커스텀 도메인 — 배포 시 이 라우트로 워커를 노출한다(zone: m1nsuppp.com).
+      "routes": [{ "pattern": "workout-planner-api.m1nsuppp.com", "custom_domain": true }],
       "vars": {
         "ENVIRONMENT": "production",
-        // 원격 배포 전 실제 웹앱 오리진으로 교체(예: https://app.example.com).
-        "APP_ORIGIN": "https://app.example.com",
+        // web(Pages) 오리진. logout POST의 Origin 검증 + CORS 허용 기준.
+        "APP_ORIGIN": "https://workout-planner.m1nsuppp.com",
+        // 로컬과 동일 OAuth 클라이언트 — prod redirect URI만 GCP에 추가 등록됨(공개값).
+        "GOOGLE_CLIENT_ID": "633312286389-o8jr7gnhcavtfvfeg9vm37fop3bo0v64.apps.googleusercontent.com",
+        // 콜백을 api 도메인이 받아 sid 쿠키를 굽고 web으로 redirect한다.
+        "OAUTH_REDIRECT_URI": "https://workout-planner-api.m1nsuppp.com/auth/google/callback",
       },
+      // named env는 top-level 바인딩을 상속하지 않는다 — d1를 여기 재선언한다.
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "workout",
+          "database_id": "fcf3b347-26f0-42f1-9807-b8a05888185c",
+          "migrations_dir": "./migrations",
+        },
+      ],
     },
   },
 }
