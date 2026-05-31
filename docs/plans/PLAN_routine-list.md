@@ -1,9 +1,9 @@
 # Implementation Plan: 내 루틴 목록 화면 (Tailwind 수직 슬라이스)
 
-**Status**: 🔄 In Progress
+**Status**: ✅ 완료
 **Started**: 2026-05-31
 **Last Updated**: 2026-05-31
-**Estimated Completion**: 미정
+**Estimated Completion**: 2026-05-31
 
 ---
 
@@ -182,7 +182,7 @@
 
 **Goal**: 홈에서 목록으로 가는 동선을 잇고 전체 흐름을 E2E로 굳힌다.
 **Estimated Time**: 1h
-**Status**: ⏳ Pending
+**Status**: ✅ 완료 (2026-05-31)
 
 #### Tasks
 
@@ -231,7 +231,7 @@ Phase 1·2에 각각 묶어, 되돌릴 때 `package.json`까지 함께 복원된
 - [x] Phase 1: Tailwind 셋업 + 모바일 쉘
 - [x] Phase 2: `useRoutines` 데이터 레이어
 - [x] Phase 3: 화면 + 인증 가드
-- [ ] Phase 4: 네비 연결 + 통합 회귀
+- [x] Phase 4: 네비 연결 + 통합 회귀
 
 ---
 

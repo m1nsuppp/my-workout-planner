@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import type { JSX } from 'react';
 import type { CurrentUser } from '../../auth/repository';
@@ -55,6 +55,12 @@ function Home(): JSX.Element {
       {auth.status === 'authenticated' && (
         <div className="flex flex-col gap-4">
           <p className="text-neutral-700">{auth.user.email} 님으로 로그인됨</p>
+          <Link
+            to="/routines"
+            className="rounded-lg bg-neutral-900 px-4 py-3 text-center font-medium text-white"
+          >
+            내 루틴
+          </Link>
           {/* 로그아웃은 sid 쿠키 정리 후 리다이렉트 — 브라우저가 302를 따라가도록 form POST. */}
           <form
             method="post"
