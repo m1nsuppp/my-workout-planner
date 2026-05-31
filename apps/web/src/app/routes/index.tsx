@@ -40,24 +40,34 @@ function Home(): JSX.Element {
   const auth = useCurrentUser();
 
   return (
-    <main>
-      <h1>my-workout-planner</h1>
-      {auth.status === 'loading' && <p>불러오는 중…</p>}
+    <main className="flex flex-1 flex-col gap-6 p-6">
+      <h1 className="text-2xl font-bold text-neutral-900">my-workout-planner</h1>
+      {auth.status === 'loading' && <p className="text-neutral-500">불러오는 중…</p>}
       {auth.status === 'anonymous' && (
         // OAuth는 전체 페이지 리다이렉트라 SPA navigate가 아닌 <a>를 쓴다.
-        <a href="/auth/google/start">Google로 로그인</a>
+        <a
+          href="/auth/google/start"
+          className="rounded-lg bg-neutral-900 px-4 py-3 text-center font-medium text-white"
+        >
+          Google로 로그인
+        </a>
       )}
       {auth.status === 'authenticated' && (
-        <>
-          <p>{auth.user.email} 님으로 로그인됨</p>
+        <div className="flex flex-col gap-4">
+          <p className="text-neutral-700">{auth.user.email} 님으로 로그인됨</p>
           {/* 로그아웃은 sid 쿠키 정리 후 리다이렉트 — 브라우저가 302를 따라가도록 form POST. */}
           <form
             method="post"
             action="/auth/logout"
           >
-            <button type="submit">로그아웃</button>
+            <button
+              type="submit"
+              className="rounded-lg border border-neutral-300 px-4 py-2 text-neutral-700"
+            >
+              로그아웃
+            </button>
           </form>
-        </>
+        </div>
       )}
     </main>
   );

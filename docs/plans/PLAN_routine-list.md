@@ -77,7 +77,7 @@
 
 **Goal**: Tailwind가 동작하고, 모든 라우트가 420px 중앙 고정폭 컨테이너 안에 렌더된다.
 **Estimated Time**: 1h
-**Status**: ⏳ Pending
+**Status**: ✅ 완료 (2026-05-31)
 
 #### Tasks
 
@@ -224,7 +224,7 @@ Phase 1·2에 각각 묶어, 되돌릴 때 `package.json`까지 함께 복원된
 
 ## 📊 Progress Tracking
 
-- [ ] Phase 1: Tailwind 셋업 + 모바일 쉘
+- [x] Phase 1: Tailwind 셋업 + 모바일 쉘
 - [ ] Phase 2: `useRoutines` 데이터 레이어
 - [ ] Phase 3: 화면 + 인증 가드
 - [ ] Phase 4: 네비 연결 + 통합 회귀

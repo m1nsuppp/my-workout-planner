@@ -1,5 +1,6 @@
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 
 const API_ORIGIN = 'http://localhost:8787';
@@ -19,6 +20,7 @@ export default defineConfig({
       generatedRouteTree: 'src/app/route-tree.gen.ts',
     }),
     react(),
+    tailwindcss(),
   ],
   server: {
     port: 5173,

@@ -13,10 +13,12 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@tailwindcss/vite": "^4.3.0",
     "@tanstack/react-router": "^1.170.10",
     "@workout/contracts": "workspace:^",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react-dom": "^19.2.6",
+    "tailwindcss": "^4.3.0"
   },
   "devDependencies": {
     "@tanstack/router-plugin": "^1.168.13",
