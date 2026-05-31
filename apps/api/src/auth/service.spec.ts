@@ -118,4 +118,29 @@ describe('createAuthService', () => {
 
     expect(await sessionRepository.findValid(issued.sid, '2026-05-30T00:00:00.000Z')).toBeNull();
   });
+
+  it('me는 유효 세션의 sid로 사용자를 돌려준다', async () => {
+    const { service } = makeService({
+      'code-1': { email: 'a@example.com', providerUserId: 'g-1' },
+    });
+    const issued = await service.complete({ code: 'code-1', codeVerifier: 'v' });
+
+    expect(await service.me(issued.sid)).toEqual({ id: 'user-1', email: 'a@example.com' });
+  });
+
+  it('me는 없는 sid면 null이다', async () => {
+    const { service } = makeService({});
+
+    expect(await service.me('nope')).toBeNull();
+  });
+
+  it('me는 logout된 세션이면 null이다', async () => {
+    const { service } = makeService({
+      'code-1': { email: 'a@example.com', providerUserId: 'g-1' },
+    });
+    const issued = await service.complete({ code: 'code-1', codeVerifier: 'v' });
+    await service.logout(issued.sid);
+
+    expect(await service.me(issued.sid)).toBeNull();
+  });
 });

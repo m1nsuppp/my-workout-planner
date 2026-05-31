@@ -12,6 +12,7 @@ const fakeAuth: AuthService = {
   }),
   complete: async () => ({ sid: 'session-1', expiresAt: '2026-12-31T00:00:00.000Z' }),
   logout: async () => undefined,
+  me: async (sid) => (sid === 'session-1' ? { id: 'user-1', email: 'a@example.com' } : null),
 };
 
 // routine 라우트는 이 테스트에서 호출되지 않는 더미.
@@ -106,6 +107,28 @@ describe('GET /auth/google/callback', () => {
     );
     expect(temp).toHaveLength(2);
     expect(temp.every((c) => c.includes('Max-Age=0'))).toBe(true);
+  });
+});
+
+describe('GET /auth/me', () => {
+  it('유효 sid면 200으로 현재 사용자를 봉투에 담아 준다', async () => {
+    const res = await app.request('/auth/me', { headers: { Cookie: 'sid=session-1' } }, env);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, data: { id: 'user-1', email: 'a@example.com' } });
+  });
+
+  it('sid 쿠키 없음 → 401 UNAUTHENTICATED', async () => {
+    const res = await app.request('/auth/me', undefined, env);
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ ok: false, error: { code: 'UNAUTHENTICATED' } });
+  });
+
+  it('세션이 무효한 sid → 401', async () => {
+    const res = await app.request('/auth/me', { headers: { Cookie: 'sid=expired' } }, env);
+
+    expect(res.status).toBe(401);
   });
 });
 

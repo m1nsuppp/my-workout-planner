@@ -1,8 +1,9 @@
 import type { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import type { CookieOptions } from 'hono/utils/cookie';
+import { MeResponseDto } from '@workout/contracts';
 import type { Env } from '../env';
-import { Status, failBody } from '../response';
+import { Status, failBody, okBody } from '../response';
 import type { AuthService } from './service';
 
 export interface AuthDeps {
@@ -76,6 +77,16 @@ export function registerAuthRoutes(app: Hono<{ Bindings: Env }>, deps: AuthDeps)
         Status.BAD_REQUEST,
       );
     }
+  });
+
+  app.get('/auth/me', async (c) => {
+    const sid = getCookie(c, SID_COOKIE);
+    const user = sid === undefined ? null : await deps.authService(c.env).me(sid);
+    if (user === null) {
+      return c.json(failBody('UNAUTHENTICATED', '로그인이 필요합니다.'), Status.UNAUTHENTICATED);
+    }
+
+    return c.json(okBody(MeResponseDto, user), Status.OK);
   });
 
   app.post('/auth/logout', async (c) => {

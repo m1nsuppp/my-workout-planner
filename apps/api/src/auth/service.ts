@@ -16,11 +16,19 @@ export interface IssuedSession {
   expiresAt: string;
 }
 
-// 인증 흐름 오케스트레이션. 사용하는 쪽(라우트) 관점의 3단계.
+// 현재 로그인 사용자(표시·식별용).
+export interface AuthenticatedUser {
+  id: string;
+  email: string;
+}
+
+// 인증 흐름 오케스트레이션. 사용하는 쪽(라우트) 관점.
 export interface AuthService {
   begin: () => Promise<LoginStart>;
   complete: (params: { code: string; codeVerifier: string }) => Promise<IssuedSession>;
   logout: (sid: string) => Promise<void>;
+  // sid → 유효 세션 → 사용자. 세션이 없거나 만료면 null(미인증).
+  me: (sid: string) => Promise<AuthenticatedUser | null>;
 }
 
 export interface AuthServiceDeps {
@@ -58,6 +66,16 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
     },
     logout: async (sid) => {
       await sessionRepository.delete(sid);
+    },
+    me: async (sid) => {
+      const session = await sessionRepository.findValid(sid, now().toISOString());
+      if (session === null) {
+        return null;
+      }
+
+      const user = await userRepository.findById(session.userId);
+
+      return user === null ? null : { id: user.id, email: user.email };
     },
   };
 }

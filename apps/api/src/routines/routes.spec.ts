@@ -57,6 +57,7 @@ const dummyAuth = {
   begin: async () => ({ state: '', verifier: '', authorizeUrl: '' }),
   complete: async () => ({ sid: '', expiresAt: '' }),
   logout: async () => undefined,
+  me: async () => null,
 };
 
 // 인증은 세션 쿠키(sid) 기반. VALID_SID만 userId 'u1'로 인증된다.
