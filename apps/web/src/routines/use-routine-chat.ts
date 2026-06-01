@@ -4,7 +4,8 @@ import type { ChatMessage, Routine, RoutineDraft } from './repository';
 
 // 루틴 생성 대화 화면의 상태 기계 — service.chat()/create()를 감싼다.
 // UI는 messages를 렌더하고 send/confirm을 호출할 뿐, LLM·HTTP는 모른다. fake service로 단위 검증된다.
-export type RoutineChatStatus = 'idle' | 'sending' | 'creating' | 'error';
+// 실패는 단계별로 구분(chatError=응답 실패 / createError=저장 실패) — UI가 다른 안내를 주도록.
+export type RoutineChatStatus = 'idle' | 'sending' | 'creating' | 'chatError' | 'createError';
 
 export interface RoutineChat {
   messages: readonly ChatMessage[];
@@ -36,7 +37,7 @@ export function useRoutineChat(): RoutineChat {
         setStatus('idle');
       },
       () => {
-        setStatus('error');
+        setStatus('chatError');
       },
     );
   };
@@ -53,7 +54,7 @@ export function useRoutineChat(): RoutineChat {
 
       return routine;
     } catch (e) {
-      setStatus('error');
+      setStatus('createError');
       throw e;
     }
   };

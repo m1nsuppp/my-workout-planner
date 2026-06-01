@@ -134,7 +134,7 @@ describe('useRoutineChat', () => {
     await expect(result.current.confirm()).rejects.toThrow();
   });
 
-  it('chat이 실패하면 error 상태가 된다', async () => {
+  it('chat이 실패하면 chatError 상태가 된다', async () => {
     const { result } = renderHook(() => useRoutineChat(), {
       wrapper: wrapperFor(
         fakeService({
@@ -149,6 +149,27 @@ describe('useRoutineChat', () => {
       result.current.send('x');
     });
 
-    await waitFor(() => expect(result.current.status).toBe('error'));
+    await waitFor(() => expect(result.current.status).toBe('chatError'));
+  });
+
+  it('confirm이 실패하면 createError 상태가 된다', async () => {
+    const { result } = renderHook(() => useRoutineChat(), {
+      wrapper: wrapperFor(
+        fakeService({
+          chat: async () => proposing,
+          create: async () => {
+            throw new ApiResponseError(500, { code: 'INTERNAL', message: '서버 오류' });
+          },
+        }),
+      ),
+    });
+
+    act(() => {
+      result.current.send('go');
+    });
+    await waitFor(() => expect(result.current.proposal).toEqual(draft));
+
+    await expect(result.current.confirm()).rejects.toThrow();
+    await waitFor(() => expect(result.current.status).toBe('createError'));
   });
 });

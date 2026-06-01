@@ -65,8 +65,11 @@ function RoutineChatScreen(): JSX.Element {
           />
         ))}
         {chat.status === 'sending' && <p className="text-sm text-neutral-400">코치가 작성 중…</p>}
-        {chat.status === 'error' && (
-          <p className="text-sm text-red-600">응답을 받지 못했어요. 다시 시도해 주세요.</p>
+        {chat.status === 'chatError' && (
+          <p className="text-sm text-red-600">응답을 받지 못했어요. 다시 보내주세요.</p>
+        )}
+        {chat.status === 'createError' && (
+          <p className="text-sm text-red-600">루틴 저장에 실패했어요. 다시 시도해 주세요.</p>
         )}
         {chat.proposal !== null && (
           <RoutinePreview
