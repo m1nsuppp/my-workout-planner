@@ -34,6 +34,28 @@ describe('RoutineRepository', () => {
     expect(result).toEqual(routine);
   });
 
+  it('chat 성공은 봉투 없는 raw proposal을 그대로 돌려준다', async () => {
+    const http = createFakeHttpClient();
+    const proposal = { phase: 'asking', message: '운동 경력은요?' };
+    http.stub('POST', '/api/routines/chat', { status: 200, body: proposal });
+
+    const result = await createRoutineRepository(http).chat([{ role: 'user', content: '루틴 짜줘' }]);
+
+    expect(result).toEqual(proposal);
+  });
+
+  it('chat 실패(비200)는 봉투를 ApiResponseError로 승격한다', async () => {
+    const http = createFakeHttpClient();
+    http.stub('POST', '/api/routines/chat', {
+      status: 502,
+      body: { ok: false, error: { code: 'LLM_FAILED', message: 'AI 응답 생성에 실패했어요.' } },
+    });
+
+    const result = createRoutineRepository(http).chat([{ role: 'user', content: 'x' }]);
+
+    await expect(result).rejects.toMatchObject({ code: 'LLM_FAILED', status: 502 });
+  });
+
   it('실패 봉투는 code·status를 담은 ApiResponseError로 던진다', async () => {
     const http = createFakeHttpClient();
     http.stub('GET', '/api/routines/missing', {

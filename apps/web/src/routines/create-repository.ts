@@ -1,12 +1,16 @@
 import {
+  ApiFailureSchema,
   CreateRoutineResponseDto,
   GetRoutineResponseDto,
   ListRoutinesResponseDto,
+  RoutineChatResultDto,
 } from '@workout/contracts';
 import type { ApiResponse } from '@workout/contracts';
 import { ApiResponseError } from '../shared/api-response-error';
 import type { HttpClient, HttpResponse } from '../http/http-client';
 import type { RoutineRepository } from './repository';
+
+const OK = 200;
 
 export function createRoutineRepository(http: HttpClient): RoutineRepository {
   return {
@@ -27,6 +31,19 @@ export function createRoutineRepository(http: HttpClient): RoutineRepository {
         CreateRoutineResponseDto,
         await http.request({ method: 'POST', path: '/api/routines', body: draft }),
       );
+    },
+    async chat(history) {
+      // chat은 ResultDto 규약상 성공이 봉투 없는 raw proposal이라 unwrap 대신 직접 분기한다.
+      const response = await http.request({
+        method: 'POST',
+        path: '/api/routines/chat',
+        body: { history },
+      });
+      if (response.status !== OK) {
+        throw new ApiResponseError(response.status, ApiFailureSchema.parse(response.body).error);
+      }
+
+      return RoutineChatResultDto.parse(response.body);
     },
   };
 }

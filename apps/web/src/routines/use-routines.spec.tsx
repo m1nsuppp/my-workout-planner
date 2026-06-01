@@ -41,6 +41,9 @@ function fakeService(list: RoutineService['list']): RoutineService {
     create: async () => {
       throw new Error('unused');
     },
+    chat: async () => {
+      throw new Error('unused');
+    },
   };
 }
 
