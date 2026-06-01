@@ -14,6 +14,8 @@
     // web(:5173) 오리진으로 콜백을 받아 sid 쿠키가 web에 박히게 한다(vite가 :8787로 프록시).
     // GCP 콘솔 '승인된 리디렉션 URI'에도 이 값과 정확히 일치하게 등록돼 있어야 한다.
     "OAUTH_REDIRECT_URI": "http://localhost:5173/auth/google/callback",
+    // LLM 모델(공개값). OPENROUTER_API_KEY는 Worker Secret(.dev.vars / wrangler secret put).
+    "LLM_MODEL": "deepseek/deepseek-v4-flash",
   },
   "d1_databases": [
     {
@@ -35,6 +37,7 @@
         "GOOGLE_CLIENT_ID": "633312286389-o8jr7gnhcavtfvfeg9vm37fop3bo0v64.apps.googleusercontent.com",
         // 콜백을 api 도메인이 받아 sid 쿠키를 굽고 web으로 redirect한다.
         "OAUTH_REDIRECT_URI": "https://workout-planner-api.m1nsuppp.com/auth/google/callback",
+        "LLM_MODEL": "deepseek/deepseek-v4-flash",
       },
       // named env는 top-level 바인딩을 상속하지 않는다 — d1를 여기 재선언한다.
       "d1_databases": [

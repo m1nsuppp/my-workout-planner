@@ -8,4 +8,8 @@ export interface Env {
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
   OAUTH_REDIRECT_URI: string;
+  // OpenRouter — LLM 대화(루틴/계획 생성, 코치)용. 키는 Worker Secret(.dev.vars).
+  OPENROUTER_API_KEY: string;
+  // OpenRouter 모델 식별자. 예: "deepseek/deepseek-v4-flash". vars로 주입해 코드 수정 없이 교체.
+  LLM_MODEL: string;
 }
