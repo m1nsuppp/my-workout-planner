@@ -54,6 +54,9 @@ coverage/
 # ---- Eval 산출물 ----
 EVAL_REPORT.md
 
+# ---- Playwright MCP (로컬 진단 산출물) ----
+.playwright-mcp/
+
 # ---- Editor / IDE ----
 .idea/
 .vscode/*
