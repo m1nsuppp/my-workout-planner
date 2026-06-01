@@ -6,7 +6,10 @@ export const RoutineExerciseSchema = z.object({
   name: z.string().min(1),
   muscleGroups: z.array(MuscleGroupSchema),
   targetSets: z.number().int().positive(),
-  targetRepRange: z.tuple([z.number().int().positive(), z.number().int().positive()]),
+  // [최소, 최대] 반복 범위. min ≤ max를 스키마로 강제 — LLM이 [12,8] 같은 역전 값을 내면 파싱 단계에서 거른다.
+  targetRepRange: z
+    .tuple([z.number().int().positive(), z.number().int().positive()])
+    .refine(([min, max]) => min <= max, { message: 'targetRepRange는 min ≤ max여야 합니다.' }),
 });
 export type RoutineExercise = z.infer<typeof RoutineExerciseSchema>;
 

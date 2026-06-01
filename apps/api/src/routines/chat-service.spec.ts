@@ -38,6 +38,30 @@ describe('createRoutineChatService', () => {
     expect(result).toEqual({ phase: 'proposing', message: '이거 어때요?', routine });
   });
 
+  it('모델이 rep 범위가 역전된(min>max) 루틴을 내면 거부한다', async () => {
+    const invalid = {
+      phase: 'proposing',
+      message: '제안',
+      routine: {
+        name: '상하체 분할',
+        goal: 'hypertrophy',
+        splitType: 'upper_lower',
+        daysPerWeek: 4,
+        days: [
+          {
+            label: '상체 A',
+            exercises: [
+              { name: '벤치프레스', muscleGroups: ['chest'], targetSets: 3, targetRepRange: [12, 8] },
+            ],
+          },
+        ],
+      },
+    };
+    const service = createRoutineChatService(createFakeLlmClient(() => invalid));
+
+    await expect(service.reply([{ role: 'user', content: 'go' }])).rejects.toThrow();
+  });
+
   it('대화 기록을 LLM 메시지로 전달한다', async () => {
     let captured: LlmMessage[] = [];
     const service = createRoutineChatService(
