@@ -11,6 +11,7 @@ export const Status = {
   FORBIDDEN: 403,
   NOT_FOUND: 404,
   UNPROCESSABLE: 422,
+  BAD_GATEWAY: 502, // 상류(LLM 등) 실패
 } as const;
 
 // 성공 봉투를 해당 엔드포인트 DTO로 검증해 만든다(서버가 깨진 응답을 내보내지 않도록).

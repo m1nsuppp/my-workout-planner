@@ -2,10 +2,13 @@ import {
   CreateRoutineResponseDto,
   GetRoutineResponseDto,
   ListRoutinesResponseDto,
+  ApiFailureSchema,
+  type RoutineChatResultDto,
 } from '@workout/contracts';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../app';
 import type { SessionRepository } from '../auth/session-repository';
+import { LlmError } from '../llm/openrouter-client';
 import type { RoutineRecord } from './repository';
 import { RoutineValidationError, type RoutineService } from './service';
 
@@ -31,6 +34,8 @@ interface FakeOpts {
   createError?: Error;
   records?: RoutineRecord[];
   found?: RoutineRecord | null;
+  chatReply?: RoutineChatResultDto;
+  chatError?: Error;
 }
 class FakeRoutineService implements RoutineService {
   constructor(private readonly opts: FakeOpts = {}) {}
@@ -74,6 +79,15 @@ const fakeSessionRepository: SessionRepository = {
 const appWith = (opts: FakeOpts = {}) =>
   createApp({
     routineService: () => new FakeRoutineService(opts),
+    routineChatService: () => ({
+      reply: async () => {
+        if (opts.chatError !== undefined) {
+          throw opts.chatError;
+        }
+
+        return opts.chatReply ?? { phase: 'asking', message: '목표가 뭐예요?' };
+      },
+    }),
     sessionRepository: () => fakeSessionRepository,
     now: () => new Date('2026-05-30T00:00:00.000Z'),
     authService: () => dummyAuth,
@@ -146,6 +160,68 @@ describe('POST /api/routines', () => {
 
   it('세션 쿠키 없음 → 401', async () => {
     const res = await postRoutine({}, validBody, false);
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('POST /api/routines/chat', () => {
+  const postChat = async (opts: FakeOpts, body: unknown, authenticated = true) =>
+    await appWith(opts).request(
+      '/api/routines/chat',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...(authenticated ? authed : {}) },
+        body: JSON.stringify(body),
+      },
+      devEnv,
+    );
+
+  const history = { history: [{ role: 'user', content: '주 4회 근비대 루틴 짜줘' }] };
+
+  it('asking 응답 → 200 + 봉투 없는 raw proposal', async () => {
+    const res = await postChat({ chatReply: { phase: 'asking', message: '운동 경력은요?' } }, history);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ phase: 'asking', message: '운동 경력은요?' });
+  });
+
+  it('proposing 응답 → 200 + routine 포함', async () => {
+    const proposal: RoutineChatResultDto = {
+      phase: 'proposing',
+      message: '이 루틴 어때요?',
+      routine: {
+        name: '주 4회 상하체 분할',
+        goal: 'hypertrophy',
+        splitType: 'upper_lower',
+        daysPerWeek: 4,
+        days: [
+          {
+            label: '상체 A',
+            exercises: [
+              { name: '벤치프레스', muscleGroups: ['chest'], targetSets: 3, targetRepRange: [8, 12] },
+            ],
+          },
+        ],
+      },
+    };
+    const res = await postChat({ chatReply: proposal }, history);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(proposal);
+  });
+
+  it('LLM 실패 → 502 LLM_FAILED', async () => {
+    const res = await postChat({ chatError: new LlmError('boom') }, history);
+    expect(res.status).toBe(502);
+    const json = ApiFailureSchema.parse(await res.json());
+    expect(json.error.code).toBe('LLM_FAILED');
+  });
+
+  it('history 누락 → 422 VALIDATION_FAILED', async () => {
+    const res = await postChat({}, {});
+    expect(res.status).toBe(422);
+  });
+
+  it('인증 없음 → 401', async () => {
+    const res = await postChat({}, history, false);
     expect(res.status).toBe(401);
   });
 });

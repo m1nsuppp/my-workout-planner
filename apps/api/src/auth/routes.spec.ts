@@ -28,6 +28,11 @@ const dummyRoutine: RoutineService = {
 const makeApp = (authService: AuthService) =>
   createApp({
     routineService: () => dummyRoutine,
+    routineChatService: () => ({
+      reply: async () => {
+        throw new Error('unused');
+      },
+    }),
     sessionRepository: () => ({
       create: async (s) => ({ id: '', ...s, createdAt: '' }),
       findValid: async () => null,

@@ -26,6 +26,11 @@ const dummySession: SessionRepository = {
 
 const deps: AppDeps = {
   routineService: () => dummyRoutine,
+  routineChatService: () => ({
+    reply: async () => {
+      throw new Error('unused');
+    },
+  }),
   sessionRepository: () => dummySession,
   authService: () => dummyAuth,
   now: () => new Date('2026-05-30T00:00:00.000Z'),

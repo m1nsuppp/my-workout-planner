@@ -4,16 +4,20 @@ import {
   CreateRoutineResponseDto,
   GetRoutineResponseDto,
   ListRoutinesResponseDto,
+  RoutineChatRequestDto,
 } from '@workout/contracts';
 import type { Env } from '../env';
 import { getUserId } from '../auth';
 import type { SessionRepository } from '../auth/session-repository';
+import { LlmError } from '../llm/openrouter-client';
 import { Status, failBody, okBody } from '../response';
+import type { RoutineChatService } from './chat-service';
 import type { NewRoutine } from './repository';
 import { RoutineValidationError, type RoutineService } from './service';
 
 export interface RoutineDeps {
   routineService: (env: Env) => RoutineService;
+  routineChatService: (env: Env) => RoutineChatService;
   sessionRepository: (env: Env) => SessionRepository;
   now: () => Date;
 }
@@ -46,6 +50,35 @@ export function registerRoutineRoutes(app: Hono<{ Bindings: Env }>, deps: Routin
           failBody('ROUTINE_INVALID', '루틴이 유효하지 않습니다.', e.issues),
           Status.UNPROCESSABLE,
         );
+      }
+
+      throw e;
+    }
+  });
+
+  // 루틴 생성 대화 — history를 받아 LLM의 다음 응답(질문 or 루틴 제안)을 돌려준다.
+  // ResultDto 규약대로 성공은 봉투 없이 raw proposal, 실패만 봉투로 감싼다.
+  app.post('/api/routines/chat', async (c) => {
+    const userId = await authenticate(c);
+    if (userId === null) {
+      return c.json(failBody('UNAUTHENTICATED', '로그인이 필요합니다.'), Status.UNAUTHENTICATED);
+    }
+
+    const parsed = RoutineChatRequestDto.safeParse(await c.req.json());
+    if (!parsed.success) {
+      return c.json(
+        failBody('VALIDATION_FAILED', '대화 형식이 올바르지 않습니다.', parsed.error.issues),
+        Status.UNPROCESSABLE,
+      );
+    }
+
+    try {
+      const proposal = await deps.routineChatService(c.env).reply(parsed.data.history);
+
+      return c.json(proposal, Status.OK);
+    } catch (e) {
+      if (e instanceof LlmError) {
+        return c.json(failBody('LLM_FAILED', 'AI 응답 생성에 실패했어요.'), Status.BAD_GATEWAY);
       }
 
       throw e;
