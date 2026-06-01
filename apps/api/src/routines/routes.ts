@@ -9,7 +9,7 @@ import {
 import type { Env } from '../env';
 import { getUserId } from '../auth';
 import type { SessionRepository } from '../auth/session-repository';
-import { LlmError } from '../llm/openrouter-client';
+import { LlmError } from '../llm/client';
 import { Status, failBody, okBody } from '../response';
 import type { RoutineChatService } from './chat-service';
 import type { NewRoutine } from './repository';

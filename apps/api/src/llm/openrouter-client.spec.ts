@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { LlmError, createOpenRouterClient } from './openrouter-client';
+import { LlmError } from './client';
+import { createOpenRouterClient } from './openrouter-client';
 
 const schema = z.object({ phase: z.literal('asking'), message: z.string() });
 

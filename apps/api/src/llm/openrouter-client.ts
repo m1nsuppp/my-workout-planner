@@ -1,13 +1,5 @@
 import { z } from 'zod';
-import type { LlmClient } from './client';
-
-// LLM 호출 실패(네트워크·비정상 응답·형식 위반)를 한 종류로 모은다. 컨트롤러가 502로 변환한다.
-export class LlmError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'LlmError';
-  }
-}
+import { LlmError, type LlmClient } from './client';
 
 // OpenRouter 응답에서 우리가 쓰는 부분만. 나머지 필드는 무시한다.
 const ChatCompletionSchema = z.object({

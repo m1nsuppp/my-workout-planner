@@ -8,7 +8,7 @@ import {
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../app';
 import type { SessionRepository } from '../auth/session-repository';
-import { LlmError } from '../llm/openrouter-client';
+import { LlmError } from '../llm/client';
 import type { RoutineRecord } from './repository';
 import { RoutineValidationError, type RoutineService } from './service';
 

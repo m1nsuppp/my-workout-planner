@@ -1,5 +1,5 @@
 import { RoutineChatResultDto, type RoutineChatRequestDto } from '@workout/contracts';
-import type { LlmClient, LlmMessage } from '../llm/client';
+import type { LlmClient } from '../llm/client';
 
 // 루틴 생성 대화의 애플리케이션 레이어. 대화 기록을 받아 LLM에게 다음 응답(질문 or 루틴 제안)을 받는다.
 // 출력 형식 강제는 RoutineChatResultDto(asking/proposing) 스키마가, 의미(운동 철학)는 시스템 프롬프트가 담당.
@@ -12,15 +12,10 @@ export function createRoutineChatService(llm: LlmClient): RoutineChatService {
     reply: async (history) =>
       await llm.generate({
         system: SYSTEM_PROMPT,
-        messages: history.map(toLlmMessage),
+        messages: history.map((m) => ({ role: m.role, content: m.content })),
         schema: RoutineChatResultDto,
       }),
   };
-}
-
-// 계약 메시지 → LLM 메시지(경계 변환). 지금은 1:1이지만 타입 경계를 분리해 둔다.
-function toLlmMessage(m: RoutineChatRequestDto['history'][number]): LlmMessage {
-  return { role: m.role, content: m.content };
 }
 
 // 운동 철학(screens.md 설계 전제)을 코치 행동 규칙으로 압축 + 출력 스키마를 명세한다.
