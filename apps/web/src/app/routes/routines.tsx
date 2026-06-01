@@ -29,6 +29,13 @@ function RoutinesScreen(): JSX.Element {
         </Link>
       </header>
 
+      <Link
+        to="/routines/new"
+        className="rounded-lg bg-neutral-900 px-4 py-2 text-center font-medium text-white"
+      >
+        루틴 만들기
+      </Link>
+
       {state.status === 'loading' && <p className="text-neutral-500">불러오는 중…</p>}
       {state.status === 'error' && <p className="text-red-600">루틴을 불러오지 못했어요.</p>}
       {state.status === 'empty' && <EmptyRoutines />}
@@ -46,17 +53,10 @@ function RoutinesScreen(): JSX.Element {
 }
 
 function EmptyRoutines(): JSX.Element {
+  // 만들기 진입은 상단 링크가 항상 제공하므로 여기선 안내만 둔다.
   return (
     <div className="flex flex-col items-center gap-3 py-12 text-center">
-      <p className="text-neutral-500">아직 루틴이 없어요.</p>
-      {/* 루틴 생성(S2) 동선은 후속 작업 — 지금은 자리만 잡는다. */}
-      <button
-        type="button"
-        disabled
-        className="rounded-lg bg-neutral-200 px-4 py-2 text-neutral-400"
-      >
-        루틴 만들기 (준비 중)
-      </button>
+      <p className="text-neutral-500">아직 루틴이 없어요. 위에서 첫 루틴을 만들어 보세요.</p>
     </div>
   );
 }

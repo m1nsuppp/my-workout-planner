@@ -61,8 +61,14 @@ function Home(): JSX.Element {
         <div className="flex flex-col gap-4">
           <p className="text-neutral-700">{auth.user.email} 님으로 로그인됨</p>
           <Link
-            to="/routines"
+            to="/routines/new"
             className="rounded-lg bg-neutral-900 px-4 py-3 text-center font-medium text-white"
+          >
+            루틴 만들기
+          </Link>
+          <Link
+            to="/routines"
+            className="rounded-lg border border-neutral-300 px-4 py-3 text-center font-medium text-neutral-700"
           >
             내 루틴
           </Link>
