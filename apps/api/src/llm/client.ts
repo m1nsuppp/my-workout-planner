@@ -10,18 +10,35 @@ export class LlmError extends Error {
 }
 
 // LLM 대화의 사용처 관점 인터페이스 — 외부 제공자(OpenRouter 등)를 이 뒤에 숨긴다.
-// 호출자는 "지시 + 대화 → 이 스키마의 객체"만 안다. 모델·프로토콜·JSON 파싱은 모른다.
+// 호출자는 "지시 + 대화 → 사람용 message + 이 스키마의 구조 객체"만 안다. 모델·프로토콜·파싱은 모른다.
 
 export interface LlmMessage {
   role: 'user' | 'assistant';
   content: string;
 }
 
+// 모델 출력 프로토콜의 경계 표지. 이 줄 앞은 사람용 message(자연어), 뒤는 구조 JSON(message 제외).
+// message는 토큰 단위로 흘리고(onDelta), 구조는 끝에 모아 검증한다. 프롬프트와 파서가 이 상수를 공유한다.
+export const STRUCT_DELIMITER = '===STRUCT===';
+
+// message 토큰이 도착할 때마다 호출되는 스트리밍 핸들러. 없으면 끝까지 모아 한 번에 반환만 한다.
+export type LlmDeltaHandler = (text: string) => void;
+
+// 한 번의 생성 결과 — 사람용 message와 schema로 검증된 구조 data를 분리해 돌려준다.
+export interface LlmResult<T> {
+  message: string;
+  data: T;
+}
+
 export interface LlmClient {
-  // schema로 출력 형식을 강제한다. 모델 응답이 schema에 맞지 않으면 throw(깨진 출력을 숨기지 않음).
-  generate: <T>(input: {
-    system: string;
-    messages: LlmMessage[];
-    schema: z.ZodType<T>;
-  }) => Promise<T>;
+  // schema로 구조 출력 형식을 강제한다. 모델 응답이 schema에 맞지 않으면 throw(깨진 출력을 숨기지 않음).
+  // onDelta가 주어지면 message 토큰을 흘린다(SSE 전송용). 없으면 스트리밍 없이 최종 결과만.
+  generate: <T>(
+    input: {
+      system: string;
+      messages: LlmMessage[];
+      schema: z.ZodType<T>;
+    },
+    onDelta?: LlmDeltaHandler,
+  ) => Promise<LlmResult<T>>;
 }
