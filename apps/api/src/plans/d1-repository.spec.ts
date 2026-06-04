@@ -5,7 +5,13 @@ import { describe, expect, it } from 'vitest';
 import { planExercises, plannedSets, plans } from '../db/schema';
 import { createD1RoutineRepository } from '../routines/d1-repository';
 import { createD1PlanRepository } from './d1-repository';
-import type { NewPlan, PlanRecord, RoutineDayRef } from './repository';
+import type { NewPlan, PlanExerciseRecord, PlanRecord, RoutineDayRef } from './repository';
+
+// 부하 하향 흉내 — 운동의 모든 세트 무게를 40으로 낮추되 세트 id는 보존한다.
+const lowerAllWeights = (e: PlanExerciseRecord): PlanExerciseRecord => ({
+  ...e,
+  sets: e.sets.map((s) => ({ ...s, targetWeightKg: 40 })),
+});
 
 const sample: NewPlan = {
   routineId: 'r1',
@@ -98,6 +104,45 @@ describe('createD1PlanRepository (실제 D1)', () => {
     const found = await repo.findById('u1', created.id);
 
     expect(found?.exercises).toEqual([]);
+  });
+
+  it('applyCoachChange는 운동 목록을 교체하고 세트 id를 보존한다', async () => {
+    const repo = createD1PlanRepository(env.DB);
+    const created = await repo.create('u1', sample);
+    const next = created.exercises.map(lowerAllWeights);
+
+    const result = await repo.applyCoachChange('u1', created.id, {
+      exercises: next,
+      idempotencyKey: 'key-1',
+      appliedAt: '2026-05-25T11:00:00.000Z',
+    });
+    expect(result).not.toBeNull();
+    expect(result).not.toBe('conflict');
+
+    const found = await repo.findById('u1', created.id);
+    expect(found?.exercises[0].sets[0].targetWeightKg).toBe(40);
+    expect(found?.exercises[0].sets[0].id).toBe(created.exercises[0].sets[0].id);
+    // 완료 세트의 actual도 보존된다(목록 교체가 무손실).
+    expect(found?.exercises[0].sets[2].actual?.rir).toBe(2);
+  });
+
+  it('같은 멱등성 키로 다시 적용하면 conflict (중복 적용 차단)', async () => {
+    const repo = createD1PlanRepository(env.DB);
+    const created = await repo.create('u1', sample);
+
+    const apply = { exercises: created.exercises, idempotencyKey: 'dup-key', appliedAt: 't1' };
+    await repo.applyCoachChange('u1', created.id, apply);
+    const second = await repo.applyCoachChange('u1', created.id, { ...apply, appliedAt: 't2' });
+
+    expect(second).toBe('conflict');
+  });
+
+  it('없는 계획에 적용하면 null', async () => {
+    const repo = createD1PlanRepository(env.DB);
+
+    expect(
+      await repo.applyCoachChange('u1', 'nope', { exercises: [], idempotencyKey: 'k', appliedAt: 't' }),
+    ).toBeNull();
   });
 });
 

@@ -2,6 +2,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { drizzle, type DrizzleD1Database } from 'drizzle-orm/d1';
 import {
+  coachApplications,
   planExerciseMuscles,
   planExercises,
   plannedSets,
@@ -9,7 +10,7 @@ import {
   routineDays,
   routines,
 } from '../db/schema';
-import type { NewPlan, PlanRecord, PlanRepository } from './repository';
+import type { NewPlan, PlanExerciseRecord, PlanRecord, PlanRepository } from './repository';
 
 type Db = DrizzleD1Database;
 
@@ -186,7 +187,96 @@ export function createD1PlanRepository(d1: D1Database): PlanRepository {
         },
       };
     },
+    applyCoachChange: async (userId, planId, apply) => {
+      const plan = await db
+        .select()
+        .from(plans)
+        .where(and(eq(plans.id, planId), eq(plans.userId, userId)))
+        .get();
+      if (plan === undefined) {
+        return null;
+      }
+
+      // 멱등성 — 같은 키가 이미 쓰였으면 중복 적용이므로 거부(delta 누적 방지). PK가 최종 방어선.
+      const seen = await db
+        .select({ key: coachApplications.idempotencyKey })
+        .from(coachApplications)
+        .where(eq(coachApplications.idempotencyKey, apply.idempotencyKey))
+        .get();
+      if (seen !== undefined) {
+        return 'conflict';
+      }
+
+      await replaceExercises(db, planId, apply.exercises, {
+        idempotencyKey: apply.idempotencyKey,
+        appliedAt: apply.appliedAt,
+      });
+
+      return await hydrate(db, plan);
+    },
   };
+}
+
+// plan의 운동/근육군/세트를 통째 갈아끼우고 멱등성 키를 같은 배치(원자적)로 기록한다.
+// 세트 id는 인자로 받은 값을 보존한다 — adjust_load는 기존 세트 id 유지, substitute는 새 세트 id가 와 있다.
+async function replaceExercises(
+  db: Db,
+  planId: string,
+  exercises: PlanExerciseRecord[],
+  application: { idempotencyKey: string; appliedAt: string },
+): Promise<void> {
+  const oldExercises = await db
+    .select({ id: planExercises.id })
+    .from(planExercises)
+    .where(eq(planExercises.planId, planId));
+  const oldIds = oldExercises.map((e) => e.id);
+
+  const exerciseValues: Array<typeof planExercises.$inferInsert> = [];
+  const muscleValues: Array<typeof planExerciseMuscles.$inferInsert> = [];
+  const setValues: Array<typeof plannedSets.$inferInsert> = [];
+
+  exercises.forEach((ex, exIndex) => {
+    const exId = newId(); // 운동 행 id는 도메인에 노출되지 않으므로 재발급한다.
+    exerciseValues.push({ id: exId, planId, name: ex.name, note: ex.note, orderIndex: exIndex });
+    for (const muscle of ex.muscleGroups) {
+      muscleValues.push({ planExerciseId: exId, muscleGroup: muscle });
+    }
+    ex.sets.forEach((set, setIndex) => {
+      setValues.push({
+        id: set.id, // 세트 id는 보존(PATCH /sets/:id 대상).
+        planExerciseId: exId,
+        orderIndex: setIndex,
+        targetWeightKg: set.targetWeightKg,
+        targetReps: set.targetReps,
+        actualWeightKg: set.actual?.weightKg,
+        actualReps: set.actual?.reps,
+        actualRir: set.actual?.rir,
+        completedAt: set.actual?.completedAt,
+      });
+    });
+  });
+
+  // 멱등성 키 insert를 첫 항목으로 둬 비어있지 않은 배치 튜플을 만족시키고, 같은 트랜잭션에서 변형을 반영한다.
+  const head = db.insert(coachApplications).values({ ...application, planId });
+  const rest: Array<BatchItem<'sqlite'>> = [];
+  if (oldIds.length > 0) {
+    rest.push(db.delete(plannedSets).where(inArray(plannedSets.planExerciseId, oldIds)));
+    rest.push(
+      db.delete(planExerciseMuscles).where(inArray(planExerciseMuscles.planExerciseId, oldIds)),
+    );
+  }
+  rest.push(db.delete(planExercises).where(eq(planExercises.planId, planId)));
+  if (exerciseValues.length > 0) {
+    rest.push(db.insert(planExercises).values(exerciseValues));
+  }
+  if (muscleValues.length > 0) {
+    rest.push(db.insert(planExerciseMuscles).values(muscleValues));
+  }
+  if (setValues.length > 0) {
+    rest.push(db.insert(plannedSets).values(setValues));
+  }
+
+  await db.batch([head, ...rest]);
 }
 
 type PlanRow = typeof plans.$inferSelect;

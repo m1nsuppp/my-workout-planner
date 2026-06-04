@@ -93,4 +93,13 @@ export interface PlanRepository {
     setId: string,
     actual: SetRecordInput,
   ) => Promise<PlannedSetRecord | null>;
+  // 코치 변경안 적용 — plan의 운동 목록을 변형된 목록으로 통째 교체하고 멱등성 키를 기록한다.
+  // 변형 계산·도메인 가드는 service 책임. 저장소는 영속·멱등성만 본다.
+  // 세트 id는 보존되므로(PATCH /sets 대상) service가 유지할 id를 그대로 넘긴다.
+  // idempotencyKey가 이미 쓰였으면 'conflict'(409), plan이 없거나 타 유저면 null.
+  applyCoachChange: (
+    userId: string,
+    planId: string,
+    apply: { exercises: PlanExerciseRecord[]; idempotencyKey: string; appliedAt: string },
+  ) => Promise<PlanRecord | 'conflict' | null>;
 }

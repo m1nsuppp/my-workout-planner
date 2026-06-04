@@ -6,6 +6,7 @@ import { PlanValidationError, createPlanService } from './service';
 // next-day/과부하/findDayId는 기본 더미, overrides로 케이스별 동작을 주입한다.
 const createFakePlanRepository = (overrides: Partial<PlanRepository> = {}): PlanRepository => {
   const store = new Map<string, PlanRecord[]>();
+  const appliedKeys = new Set<string>();
   let seq = 0;
 
   return {
@@ -45,6 +46,19 @@ const createFakePlanRepository = (overrides: Partial<PlanRepository> = {}): Plan
       return target;
     },
     updateSet: async () => null,
+    applyCoachChange: async (userId, planId, apply) => {
+      const target = (store.get(userId) ?? []).find((p) => p.id === planId);
+      if (target === undefined) {
+        return null;
+      }
+      if (appliedKeys.has(apply.idempotencyKey)) {
+        return 'conflict';
+      }
+      appliedKeys.add(apply.idempotencyKey);
+      target.exercises = apply.exercises;
+
+      return target;
+    },
     ...overrides,
   };
 };
