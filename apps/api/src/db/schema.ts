@@ -1,4 +1,4 @@
-import { integer, primaryKey, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
+import { index, integer, primaryKey, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
 
 // 사용자/세션. 신원 골격만 — OAuth provider 매핑은 (provider, provider_user_id)로 보유.
 // 같은 email이라도 provider가 다르면 다른 신원이므로 email은 unique 아님.
@@ -67,4 +67,65 @@ export const routineExerciseMuscles = sqliteTable(
     muscleGroup: text('muscle_group').notNull(),
   },
   (t) => [primaryKey({ columns: [t.routineExerciseId, t.muscleGroup] })],
+);
+
+// 계획(인스턴스) 계열. 루틴 템플릿을 특정 날짜에 적용한 스냅샷 + 실제 수행 기록.
+// 계획=생성 시점 스냅샷 원칙: 표시에 필요한 값(routineDayLabel, planExercises.name)을 복사해 박는다.
+
+export const plans = sqliteTable(
+  'plans',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull(), // FK 미사용
+    routineId: text('routine_id').notNull(), // 파생된 루틴(현재 위치 계산용)
+    routineDayId: text('routine_day_id'), // 어느 Day(nullable: 루틴 수정/삭제 대비)
+    routineDayLabel: text('routine_day_label').notNull(), // 표시용 스냅샷(루틴 수정돼도 불변)
+    date: text('date').notNull(), // ISODate "2026-05-25"
+    status: text('status').notNull().default('scheduled'), // scheduled|in_progress|completed
+    overloadNote: text('overload_note'), // LLM 과부하 근거
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    index('idx_plans_user_date').on(t.userId, t.date), // 캘린더/오늘 조회
+    index('idx_plans_day_lookup').on(t.routineId, t.routineDayId, t.status, t.date), // 직전 동일 Day
+  ],
+);
+
+export const planExercises = sqliteTable(
+  'plan_exercises',
+  {
+    id: text('id').primaryKey(),
+    planId: text('plan_id').notNull(), // FK 미사용
+    name: text('name').notNull(), // 스냅샷 복사본
+    note: text('note'), // 운동 중 교체 등 한 줄 메모
+    orderIndex: integer('order_index').notNull(),
+  },
+  (t) => [unique().on(t.planId, t.orderIndex)],
+);
+
+export const planExerciseMuscles = sqliteTable(
+  'plan_exercise_muscles',
+  {
+    planExerciseId: text('plan_exercise_id').notNull(), // FK 미사용
+    muscleGroup: text('muscle_group').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.planExerciseId, t.muscleGroup] })],
+);
+
+// 계획 세트 = 목표값 + (선택)실제 수행값. actual은 세트당 최대 1개라 컬럼으로 흡수.
+export const plannedSets = sqliteTable(
+  'planned_sets',
+  {
+    id: text('id').primaryKey(),
+    planExerciseId: text('plan_exercise_id').notNull(), // FK 미사용
+    orderIndex: integer('order_index').notNull(),
+    targetWeightKg: real('target_weight_kg').notNull(),
+    targetReps: integer('target_reps').notNull(),
+    // 수행 기록(SetRecord). 미수행이면 NULL.
+    actualWeightKg: real('actual_weight_kg'),
+    actualReps: integer('actual_reps'),
+    actualRir: integer('actual_rir'),
+    completedAt: text('completed_at'),
+  },
+  (t) => [unique().on(t.planExerciseId, t.orderIndex)],
 );
