@@ -1,6 +1,6 @@
 import { CoachResultDto, type CoachRequestDto } from '@workout/contracts';
 import { z } from 'zod';
-import { STRUCT_DELIMITER, type LlmClient, type LlmDeltaHandler } from '../llm/client';
+import type { LlmClient, LlmDeltaHandler } from '../llm/client';
 import type { PlanExerciseRecord } from './repository';
 
 // 코치가 보는 현재 세션 스냅샷(LLM 컨텍스트) — 라우트가 진행 중 plan에서 조립해 넘긴다.
@@ -44,7 +44,8 @@ const LlmCoachChange = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('rest'), durationSec: z.number(), reason: z.string() }),
   z.object({ kind: z.literal('end_session'), reason: z.string() }),
 ]);
-const LlmCoachStruct = z.object({ change: LlmCoachChange.nullable() });
+// LLM이 낼 JSON(message 포함). 세트 id·근육군 enum 등 엄밀한 강제는 CoachResultDto가 맡는다.
+const LlmCoachStruct = z.object({ message: z.string(), change: LlmCoachChange.nullable() });
 
 type LlmChange = z.infer<typeof LlmCoachChange>;
 
@@ -53,7 +54,7 @@ const newId = (): string => crypto.randomUUID();
 export function createCoachService(llm: LlmClient): CoachService {
   return {
     reply: async (session, history, onDelta) => {
-      const { message, data } = await llm.generate(
+      const { message, change } = await llm.generate(
         {
           system: buildSystemPrompt(session),
           messages: history.map((m) => ({ role: m.role, content: m.content })),
@@ -63,9 +64,9 @@ export function createCoachService(llm: LlmClient): CoachService {
       );
 
       // substitute의 replacement 세트에 id를 주입해 계약(PlannedSet) 형태를 맞춘 뒤 최종 검증한다.
-      const change = data.change === null ? null : withSetIds(data.change);
+      const withIds = change === null ? null : withSetIds(change);
 
-      return CoachResultDto.parse({ message, change });
+      return CoachResultDto.parse({ message, change: withIds });
     },
   };
 }
@@ -98,12 +99,9 @@ ${formatSession(session.exercises)}
 - "오늘 너무 쉽다"는 즉석 신호로는 증량하지 않는다 — 오늘은 계획대로 수행하고 다음 계획에서 반영하라고 안내한다.
 - 이미 수행한(완료된) 세트는 바꿀 수 없다. 변경은 남은 세트에만 적용된다.
 
-응답 형식(반드시 이 순서):
-1) 먼저 사용자에게 보여줄 한국어 메시지를 자연어로 쓴다.
-2) 그 다음 줄에 정확히 "${STRUCT_DELIMITER}" 한 줄을 쓴다.
-3) 그 아래에 아래 구조 JSON만 쓴다(message 필드는 넣지 않는다, 코드블록 없이 JSON 그 자체).
+출력은 반드시 아래 형태의 JSON 객체 하나로만 응답한다(코드블록·설명 텍스트 없이 JSON 그 자체). message에 사용자에게 보여줄 한국어를 담는다.
 
-{"change": <아래 중 하나 또는 null(대화만 하고 변경이 없으면 null)>}
+{"message":"<사용자에게 보여줄 한국어>","change": <아래 중 하나 또는 null(대화만 하고 변경이 없으면 null)>}
 
 - 교체: {"kind":"substitute","targetExerciseName":"<원본 운동명>","replacement":{"name":"<대체 운동명>","muscleGroups":[<"chest"|"back"|"shoulders"|"legs"|"glutes"|"core"|"biceps"|"triceps" 중 하나 이상>],"sets":[{"targetWeightKg":<0 이상 숫자>,"targetReps":<양의 정수>}]},"reason":"<사유>"}
 - 부하 하향: {"kind":"adjust_load","targetExerciseName":"<운동명>","weightFactor":<0.5~1>,"repsDelta":<0 이하 정수, 선택>,"dropSets":<0 이상 정수, 선택>,"reason":"<사유>"}

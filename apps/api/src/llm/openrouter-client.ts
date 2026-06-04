@@ -1,10 +1,5 @@
 import { z } from 'zod';
-import {
-  LlmError,
-  STRUCT_DELIMITER,
-  type LlmClient,
-  type LlmDeltaHandler,
-} from './client';
+import { LlmError, type LlmClient, type LlmDeltaHandler } from './client';
 
 // 스트림 청크에서 우리가 쓰는 부분만(증분 content). role-only 청크는 content가 없을 수 있다.
 const ChunkSchema = z.object({
@@ -17,9 +12,12 @@ const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 const ERROR_PREVIEW_LEN = 200; // 비정상 응답 미리보기 길이
 const DATA_PREFIX = 'data:';
 const DONE = '[DONE]';
+const ESCAPE_PAIR_LEN = 2; // 백슬래시 + 이스케이프 문자
+// 출력 JSON에서 사람용 message 필드의 값을 찾는 패턴. 우리 스키마는 message 키가 하나뿐이다.
+const MESSAGE_KEY = /"message"\s*:\s*"/;
 
 // OpenRouter REST를 LlmClient로 래핑. fetch를 주입받아(기본 전역) 테스트에서 fake로 바꾼다.
-// 출력은 자연어 message + STRUCT_DELIMITER + 구조 JSON 형태로 흘러온다(system 프롬프트가 강제).
+// response_format(json_object)으로 모델이 유효 JSON 하나만 내도록 강제하고, 스키마 자체는 system 프롬프트가 명세한다.
 export function createOpenRouterClient(config: {
   apiKey: string;
   model: string;
@@ -38,6 +36,7 @@ export function createOpenRouterClient(config: {
         body: JSON.stringify({
           model: config.model,
           stream: true,
+          response_format: { type: 'json_object' },
           messages: [{ role: 'system', content: system }, ...messages],
         }),
       });
@@ -50,17 +49,14 @@ export function createOpenRouterClient(config: {
       }
 
       // 바이트 스트림을 문자열 스트림으로 디코딩(멀티바이트 경계는 TextDecoderStream이 처리).
-      const { message, structText } = await consumeStream(
-        res.body.pipeThrough(new TextDecoderStream()),
-        onDelta,
-      );
+      const content = await consumeStream(res.body.pipeThrough(new TextDecoderStream()), onDelta);
 
       let json: unknown = undefined;
       try {
-        json = JSON.parse(structText);
+        json = JSON.parse(content);
       } catch {
         throw new LlmError(
-          `모델이 구조 JSON이 아닌 응답을 반환했습니다: ${structText.slice(0, ERROR_PREVIEW_LEN)}`,
+          `모델이 JSON이 아닌 응답을 반환했습니다: ${content.slice(0, ERROR_PREVIEW_LEN)}`,
         );
       }
 
@@ -69,46 +65,20 @@ export function createOpenRouterClient(config: {
         throw new LlmError(`모델 출력이 스키마와 맞지 않습니다: ${result.error.message}`);
       }
 
-      return { message, data: result.data };
+      return result.data;
     },
   };
 }
 
-// SSE 본문을 끝까지 읽어, 구분자 앞 message(토큰을 onDelta로 흘림)와 구분자 뒤 구조 텍스트로 분해한다.
+// SSE 본문을 끝까지 읽어 전체 출력 JSON 텍스트를 모으고, message 필드가 자라는 만큼 증분을 onDelta로 흘린다.
 async function consumeStream(
   stream: ReadableStream<string>,
   onDelta?: LlmDeltaHandler,
-): Promise<{ message: string; structText: string }> {
+): Promise<string> {
   const reader = stream.getReader();
-  // 구분자가 청크 경계에 걸칠 수 있으므로, 끝부분 (구분자 길이 - 1)만큼은 흘리지 않고 보류한다.
-  const lookback = STRUCT_DELIMITER.length - 1;
-
   let sseBuf = ''; // SSE 라인 파싱 버퍼
-  let content = ''; // 누적 모델 출력
+  let content = ''; // 누적 모델 출력(JSON)
   let sentLen = 0; // onDelta로 흘린 message 길이
-  let structStarted = false;
-
-  const pump = async (piece: string): Promise<void> => {
-    content += piece;
-    if (structStarted) {
-      return;
-    }
-    const idx = content.indexOf(STRUCT_DELIMITER);
-    if (idx === -1) {
-      const safe = content.length - lookback;
-      if (safe > sentLen) {
-        await onDelta?.(content.slice(sentLen, safe));
-        sentLen = safe;
-      }
-
-      return;
-    }
-    if (idx > sentLen) {
-      await onDelta?.(content.slice(sentLen, idx));
-    }
-    sentLen = idx;
-    structStarted = true;
-  };
 
   for (;;) {
     const { done, value } = await reader.read();
@@ -119,25 +89,62 @@ async function consumeStream(
 
     let nl = sseBuf.indexOf('\n');
     while (nl !== -1) {
-      const line = sseBuf.slice(0, nl).trim();
+      const piece = parseDataLine(sseBuf.slice(0, nl).trim());
       sseBuf = sseBuf.slice(nl + 1);
-      const piece = parseDataLine(line);
       if (piece !== null) {
-        await pump(piece);
+        content += piece;
+        const message = messageSoFar(content);
+        if (message !== null && message.length > sentLen) {
+          await onDelta?.(message.slice(sentLen));
+          sentLen = message.length;
+        }
       }
       nl = sseBuf.indexOf('\n');
     }
   }
 
-  const idx = content.indexOf(STRUCT_DELIMITER);
-  if (idx === -1) {
-    throw new LlmError('모델 출력에 구조 구분자가 없습니다.');
+  return content;
+}
+
+// 누적 JSON 버퍼에서 message 필드의 "현재까지 디코드된 값"을 뽑는다. 아직 값이 시작 안 됐으면 null.
+// 닫는 따옴표(escape 안 된 ")를 만나거나 버퍼가 끝나면 멈춘다 — 스트리밍 중엔 부분 값을 돌려준다.
+function messageSoFar(buf: string): string | null {
+  const m = MESSAGE_KEY.exec(buf);
+  if (m === null) {
+    return null;
+  }
+  let i = m.index + m[0].length;
+  let out = '';
+  while (i < buf.length) {
+    const c = buf[i];
+    if (c === '\\') {
+      if (i + 1 >= buf.length) {
+        break; // escape 시퀀스가 아직 안 옴
+      }
+      out += unescapeChar(buf[i + 1]);
+      i += ESCAPE_PAIR_LEN;
+    } else if (c === '"') {
+      break; // 값의 끝
+    } else {
+      out += c;
+      i += 1;
+    }
   }
 
-  return {
-    message: content.slice(0, idx).trim(),
-    structText: content.slice(idx + STRUCT_DELIMITER.length),
-  };
+  return out;
+}
+
+function unescapeChar(c: string): string {
+  switch (c) {
+    case 'n':
+      return '\n';
+    case 't':
+      return '\t';
+    case 'r':
+      return '\r';
+    default:
+      return c; // ", \, / 등은 그대로(한글 등 본문은 escape되지 않는다)
+  }
 }
 
 // SSE 한 줄에서 증분 content를 뽑는다. data 라인이 아니거나 content가 없으면 null.

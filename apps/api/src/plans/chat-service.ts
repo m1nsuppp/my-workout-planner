@@ -1,6 +1,6 @@
 import { CreatePlanRequestDto, PlanChatResultDto, type PlanChatRequestDto } from '@workout/contracts';
 import { z } from 'zod';
-import { STRUCT_DELIMITER, type LlmClient, type LlmDeltaHandler } from '../llm/client';
+import type { LlmClient, LlmDeltaHandler } from '../llm/client';
 import type { OverloadRecord } from './repository';
 
 // 계획 생성 대화의 입력 컨텍스트 — 라우트가 저장소(nextDay/lastOverload)에서 조립해 넘긴다.
@@ -27,37 +27,37 @@ const LlmPlanContent = CreatePlanRequestDto.omit({
   routineDayLabel: true,
   date: true,
 });
-// 모델이 구분자 뒤에 낼 구조(message 제외). message는 LLM 레이어가 분리해 채운다.
-const PlanStructSchema = z.discriminatedUnion('phase', [
-  z.object({ phase: z.literal('asking') }),
-  z.object({ phase: z.literal('proposing'), planDraft: LlmPlanContent }),
+// LLM이 낼 JSON(message 포함, 식별 필드는 제외). 식별 필드는 서버가 주입한다.
+const LlmPlanProposalSchema = z.discriminatedUnion('phase', [
+  z.object({ phase: z.literal('asking'), message: z.string() }),
+  z.object({ phase: z.literal('proposing'), message: z.string(), planDraft: LlmPlanContent }),
 ]);
 
 export function createPlanChatService(llm: LlmClient): PlanChatService {
   return {
     reply: async (context, history, onDelta) => {
-      const { message, data } = await llm.generate(
+      const result = await llm.generate(
         {
           system: buildSystemPrompt(context),
           messages: history.map((m) => ({ role: m.role, content: m.content })),
-          schema: PlanStructSchema,
+          schema: LlmPlanProposalSchema,
         },
         onDelta,
       );
 
-      if (data.phase === 'asking') {
-        return PlanChatResultDto.parse({ phase: 'asking', message });
+      if (result.phase === 'asking') {
+        return result;
       }
 
       // proposing — 식별 필드를 서버가 주입해 PlanDraft를 완성하고 계약으로 최종 검증한다.
       return PlanChatResultDto.parse({
         phase: 'proposing',
-        message,
+        message: result.message,
         planDraft: {
           routineId: context.routineId,
           routineDayLabel: context.routineDayLabel,
           date: context.date,
-          ...data.planDraft,
+          ...result.planDraft,
         },
       });
     },
@@ -81,16 +81,13 @@ ${formatOverloads(context.overloads)}
 
 정보가 부족하면(오늘 컨디션 등) 한 번에 하나씩 핵심 질문을 한다. 충분히 파악됐으면 계획을 제안한다.
 
-응답 형식(반드시 이 순서):
-1) 먼저 사용자에게 보여줄 한국어 메시지를 자연어로 쓴다(질문 또는 계획 요약 설명).
-2) 그 다음 줄에 정확히 "${STRUCT_DELIMITER}" 한 줄을 쓴다.
-3) 그 아래에 아래 두 형태 중 하나의 구조 JSON만 쓴다(message 필드는 넣지 않는다, 코드블록 없이 JSON 그 자체). routineId·routineDayLabel·date는 서버가 채우므로 너는 포함하지 않는다.
+출력은 반드시 아래 두 형태 중 하나의 JSON 객체로만 응답한다(코드블록·설명 텍스트 없이 JSON 그 자체). message에 사용자에게 보여줄 한국어를 담고, routineId·routineDayLabel·date는 서버가 채우므로 너는 포함하지 않는다.
 
 1) 정보 수집 중:
-{"phase":"asking"}
+{"phase":"asking","message":"<사용자에게 할 한국어 질문>"}
 
 2) 계획 제안:
-{"phase":"proposing","planDraft":{
+{"phase":"proposing","message":"<계획 요약 설명(한국어)>","planDraft":{
   "exercises":[
     {"name":"<운동명>","muscleGroups":[<"chest"|"back"|"shoulders"|"legs"|"glutes"|"core"|"biceps"|"triceps" 중 하나 이상>],"sets":[{"targetWeightKg":<0 이상 숫자>,"targetReps":<양의 정수>}],"note":"<선택: 한 줄 메모>"}
   ],
