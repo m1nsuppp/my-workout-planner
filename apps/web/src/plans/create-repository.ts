@@ -4,6 +4,7 @@ import {
   CoachResultDto,
   CreatePlanResponseDto,
   GetPlanResponseDto,
+  ListPlansResponseDto,
   NextDayResponseDto,
   PlanChatResultDto,
   UpdateSetResponseDto,
@@ -19,6 +20,21 @@ export function createPlanRepository(http: HttpClient): PlanRepository {
       return unwrap(
         GetPlanResponseDto,
         await http.request({ method: 'GET', path: `/api/plans/${id}` }),
+      );
+    },
+    async list(range) {
+      const params = new URLSearchParams();
+      if (range?.from !== undefined) {
+        params.set('from', range.from);
+      }
+      if (range?.to !== undefined) {
+        params.set('to', range.to);
+      }
+      const query = params.toString();
+
+      return unwrap(
+        ListPlansResponseDto,
+        await http.request({ method: 'GET', path: `/api/plans${query === '' ? '' : `?${query}`}` }),
       );
     },
     async create(draft) {

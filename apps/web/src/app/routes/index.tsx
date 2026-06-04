@@ -2,6 +2,7 @@ import { Link, createFileRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import type { JSX } from 'react';
 import type { CurrentUser } from '../../auth/repository';
+import { usePlans } from '../../plans/use-plans';
 import { useAuthService } from '../contexts/auth-service-context';
 
 export const Route = createFileRoute('/')({
@@ -72,6 +73,9 @@ function Home(): JSX.Element {
           >
             내 루틴
           </Link>
+
+          <PlanList />
+
           {/* 로그아웃은 sid 쿠키 정리 후 리다이렉트 — 브라우저가 302를 따라가도록 form POST. */}
           <form
             method="post"
@@ -87,5 +91,47 @@ function Home(): JSX.Element {
         </div>
       )}
     </main>
+  );
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  scheduled: '예정',
+  in_progress: '운동 중',
+  completed: '완료',
+};
+
+// 로그인 사용자의 계획 목록(날짜 오름차순). 각 항목은 계획 상세(S6)로 진입한다.
+function PlanList(): JSX.Element {
+  const state = usePlans();
+
+  return (
+    <section className="flex flex-col gap-2">
+      <h2 className="text-sm font-semibold text-neutral-500">내 계획</h2>
+      {state.status === 'loading' && <p className="text-sm text-neutral-400">불러오는 중…</p>}
+      {state.status === 'error' && (
+        <p className="text-sm text-red-600">계획을 불러오지 못했어요.</p>
+      )}
+      {state.status === 'empty' && (
+        <p className="text-sm text-neutral-400">아직 만든 계획이 없어요. 루틴에서 계획을 만들어 보세요.</p>
+      )}
+      {state.status === 'loaded' && (
+        <ul className="flex flex-col gap-2">
+          {state.plans.map((plan) => (
+            <li key={plan.id}>
+              <Link
+                to="/plans/$id"
+                params={{ id: plan.id }}
+                className="flex items-center justify-between rounded-lg border border-neutral-200 px-4 py-3"
+              >
+                <span className="font-medium text-neutral-900">{plan.routineDayLabel}</span>
+                <span className="text-sm text-neutral-500">
+                  {plan.date} · {STATUS_LABEL[plan.status] ?? plan.status} · {plan.exerciseCount}개
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

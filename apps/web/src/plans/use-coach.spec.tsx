@@ -41,6 +41,7 @@ function fakeService(calls: CoachCalls): PlanService {
 
   return {
     get: unused,
+    list: unused,
     create: unused,
     nextDay: unused,
     chat: unused,

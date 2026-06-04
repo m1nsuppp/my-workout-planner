@@ -137,6 +137,28 @@ describe('PlanRepository', () => {
     await expect(result).rejects.toMatchObject({ code: 'INVALID_STATE_TRANSITION', status: 409 });
   });
 
+  it('list는 요약 배열을 돌려준다', async () => {
+    const http = createFakeHttpClient();
+    const summaries = [
+      { id: 'p1', date: '2026-05-25', status: 'scheduled', routineDayLabel: '상체 A', exerciseCount: 3 },
+    ];
+    http.stub('GET', '/api/plans', { status: 200, body: { ok: true, data: summaries } });
+
+    expect(await createPlanRepository(http).list()).toEqual(summaries);
+  });
+
+  it('list는 from/to를 쿼리로 보낸다', async () => {
+    const http = createFakeHttpClient();
+    http.stub('GET', '/api/plans?from=2026-05-01&to=2026-05-31', {
+      status: 200,
+      body: { ok: true, data: [] },
+    });
+
+    expect(await createPlanRepository(http).list({ from: '2026-05-01', to: '2026-05-31' })).toEqual(
+      [],
+    );
+  });
+
   it('coach는 result 이벤트의 CoachResponse를 돌려준다', async () => {
     const http = createFakeHttpClient();
     http.stubStream('POST', '/api/plans/p1/coach', {

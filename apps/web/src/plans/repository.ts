@@ -3,6 +3,7 @@ import type {
   CoachResultDto,
   CreatePlanRequestDto,
   GetPlanResponseDto,
+  ListPlansResponseDto,
   NextDayResponseDto,
   PlanChatRequestDto,
   PlanChatResultDto,
@@ -12,6 +13,13 @@ import type {
 
 // 경계 도메인 타입 — 지금은 contracts와 1:1이라 DTO에서 추출해 그대로 쓴다.
 export type Plan = Extract<GetPlanResponseDto, { ok: true }>['data'];
+// 목록/홈용 경량 요약(상세 exercises 없이 운동 개수만).
+export type PlanSummary = Extract<ListPlansResponseDto, { ok: true }>['data'][number];
+// 목록 조회 기간(둘 다 선택).
+export interface PlanDateRange {
+  from?: string;
+  to?: string;
+}
 export type PlanDraft = CreatePlanRequestDto;
 export type PlannedSet = Plan['exercises'][number]['sets'][number];
 export type NextDay = Extract<NextDayResponseDto, { ok: true }>['data'];
@@ -39,6 +47,8 @@ export interface PlanChatInput {
 // 실패(미인증·없음·검증오류·LLM)는 ApiError로 던진다 — 값으로 숨기지 않는다.
 export interface PlanRepository {
   get: (id: string) => Promise<Plan>;
+  // 기간 내 계획 요약 목록(날짜 오름차순). range 없으면 전체.
+  list: (range?: PlanDateRange) => Promise<PlanSummary[]>;
   create: (draft: PlanDraft) => Promise<Plan>;
   // 루틴의 다음 차례 Day 자동 제시(계획 생성 진입 시 기본 Day).
   nextDay: (routineId: string) => Promise<NextDay>;

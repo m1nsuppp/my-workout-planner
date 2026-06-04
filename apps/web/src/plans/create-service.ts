@@ -8,6 +8,9 @@ export function createPlanService(repository: PlanRepository): PlanService {
     async get(id) {
       return await repository.get(id);
     },
+    async list(range) {
+      return await repository.list(range);
+    },
     async create(draft) {
       return await repository.create(draft);
     },
