@@ -14,8 +14,8 @@ export function createPlanService(repository: PlanRepository): PlanService {
     async nextDay(routineId) {
       return await repository.nextDay(routineId);
     },
-    async chat(input) {
-      return await repository.chat(input);
+    async chat(input, onDelta) {
+      return await repository.chat(input, onDelta);
     },
     async updateStatus(planId, status) {
       return await repository.updateStatus(planId, status);

@@ -6,5 +6,5 @@ export interface RoutineService {
   list: () => Promise<Routine[]>;
   get: (id: string) => Promise<Routine>;
   create: (draft: RoutineDraft) => Promise<Routine>;
-  chat: (history: ChatMessage[]) => Promise<RoutineProposal>;
+  chat: (history: ChatMessage[], onDelta?: (text: string) => void) => Promise<RoutineProposal>;
 }

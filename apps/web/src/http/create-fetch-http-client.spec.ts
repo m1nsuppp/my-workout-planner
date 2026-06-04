@@ -56,3 +56,79 @@ describe('FetchHttpClient', () => {
     expect(calls[0]?.init?.body).toBe(JSON.stringify({ name: '상하체' }));
   });
 });
+
+// SSE 프레임들을 흘리는 fake fetch(text/event-stream).
+function sseResponse(frames: string[]): typeof globalThis.fetch {
+  return async () => {
+    await Promise.resolve();
+    const enc = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const f of frames) {
+          controller.enqueue(enc.encode(f));
+        }
+        controller.close();
+      },
+    });
+
+    return new Response(stream, { status: 200, headers: { 'content-type': 'text/event-stream' } });
+  };
+}
+
+describe('FetchHttpClient.stream', () => {
+  it('delta 토큰을 onDelta로 흘리고 result 이벤트를 결과로 돌려준다', async () => {
+    const http = createFetchHttpClient({
+      baseUrl: '',
+      fetch: sseResponse([
+        'event: delta\ndata: {"text":"안녕"}\n\n',
+        'event: delta\ndata: {"text":"하세요"}\n\n',
+        'event: result\ndata: {"phase":"asking"}\n\n',
+      ]),
+    });
+
+    let streamed = '';
+    const outcome = await http.stream({ method: 'POST', path: '/chat', body: {} }, (t) => {
+      streamed += t;
+    });
+
+    expect(streamed).toBe('안녕하세요');
+    expect(outcome).toEqual({ status: 200, event: 'result', data: { phase: 'asking' } });
+  });
+
+  it('error 이벤트는 error 결과로 돌려준다', async () => {
+    const http = createFetchHttpClient({
+      baseUrl: '',
+      fetch: sseResponse(['event: error\ndata: {"code":"LLM_FAILED","message":"x"}\n\n']),
+    });
+
+    const outcome = await http.stream({ method: 'POST', path: '/chat', body: {} }, () => undefined);
+
+    expect(outcome).toEqual({
+      status: 200,
+      event: 'error',
+      data: { code: 'LLM_FAILED', message: 'x' },
+    });
+  });
+
+  it('스트림 전 실패(비 SSE 봉투)는 봉투의 error를 꺼내 error 결과로 정규화한다', async () => {
+    const http = createFetchHttpClient({
+      baseUrl: '',
+      fetch: async () => {
+        await Promise.resolve();
+
+        return new Response(
+          JSON.stringify({ ok: false, error: { code: 'UNAUTHENTICATED', message: '로그인 필요' } }),
+          { status: 401, headers: { 'content-type': 'application/json' } },
+        );
+      },
+    });
+
+    const outcome = await http.stream({ method: 'POST', path: '/chat', body: {} }, () => undefined);
+
+    expect(outcome).toEqual({
+      status: 401,
+      event: 'error',
+      data: { code: 'UNAUTHENTICATED', message: '로그인 필요' },
+    });
+  });
+});

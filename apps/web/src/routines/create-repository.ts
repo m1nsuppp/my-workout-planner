@@ -1,5 +1,5 @@
 import {
-  ApiFailureSchema,
+  ApiErrorSchema,
   CreateRoutineResponseDto,
   GetRoutineResponseDto,
   ListRoutinesResponseDto,
@@ -9,8 +9,6 @@ import type { ApiResponse } from '@workout/contracts';
 import { ApiResponseError } from '../shared/api-response-error';
 import type { HttpClient, HttpResponse } from '../http/http-client';
 import type { RoutineRepository } from './repository';
-
-const OK = 200;
 
 export function createRoutineRepository(http: HttpClient): RoutineRepository {
   return {
@@ -32,18 +30,17 @@ export function createRoutineRepository(http: HttpClient): RoutineRepository {
         await http.request({ method: 'POST', path: '/api/routines', body: draft }),
       );
     },
-    async chat(history) {
-      // chat은 ResultDto 규약상 성공이 봉투 없는 raw proposal이라 unwrap 대신 직접 분기한다.
-      const response = await http.request({
-        method: 'POST',
-        path: '/api/routines/chat',
-        body: { history },
-      });
-      if (response.status !== OK) {
-        throw new ApiResponseError(response.status, ApiFailureSchema.parse(response.body).error);
+    async chat(history, onDelta) {
+      // chat은 SSE — message 토큰은 onDelta로 흘리고, result 이벤트의 raw proposal을 돌려준다.
+      const outcome = await http.stream(
+        { method: 'POST', path: '/api/routines/chat', body: { history } },
+        onDelta ?? (() => undefined),
+      );
+      if (outcome.event === 'error') {
+        throw new ApiResponseError(outcome.status, ApiErrorSchema.parse(outcome.data));
       }
 
-      return RoutineChatResultDto.parse(response.body);
+      return RoutineChatResultDto.parse(outcome.data);
     },
   };
 }

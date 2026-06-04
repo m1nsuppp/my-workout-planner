@@ -14,6 +14,16 @@ export interface HttpResponse {
   body: unknown; // JSON 역직렬화 결과. 본문이 없으면 undefined
 }
 
+// SSE 스트림의 종료 결과. delta 토큰은 onDelta로 흘리고, 마지막에 result(성공) 또는 error(실패)로 끝난다.
+// data: result면 raw 페이로드, error면 ApiError 형태({code,message}). status는 스트림 시작 응답의 HTTP status.
+export interface SseOutcome {
+  status: number;
+  event: 'result' | 'error';
+  data: unknown;
+}
+
 export interface HttpClient {
   request: (req: HttpRequest) => Promise<HttpResponse>;
+  // SSE 요청. message 토큰을 onDelta로 흘리고 result/error 이벤트로 끝난다. 봉투·검증은 모른다(상위 몫).
+  stream: (req: HttpRequest, onDelta: (text: string) => void) => Promise<SseOutcome>;
 }

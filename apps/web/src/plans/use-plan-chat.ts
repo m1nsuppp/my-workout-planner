@@ -15,6 +15,8 @@ export interface PlanChatContext {
 
 export interface PlanChat {
   messages: readonly ChatMessage[];
+  // 도착 중인 assistant 메시지(SSE 토큰 누적). 빈 문자열이면 표시하지 않는다.
+  streaming: string;
   // 확정 가능한 최신 계획 제안(proposing). null이면 아직 확정할 게 없음 → 확정 버튼 숨김.
   proposal: PlanDraft | null;
   status: PlanChatStatus;
@@ -25,6 +27,7 @@ export interface PlanChat {
 export function usePlanChat(context: PlanChatContext): PlanChat {
   const service = usePlanService();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [streaming, setStreaming] = useState('');
   const [proposal, setProposal] = useState<PlanDraft | null>(null);
   const [status, setStatus] = useState<PlanChatStatus>('idle');
 
@@ -33,16 +36,19 @@ export function usePlanChat(context: PlanChatContext): PlanChat {
     const history = [...messages, userMessage];
     setMessages(history);
     setProposal(null); // 새 발화로 직전 제안은 무효화 — 모델 응답으로 다시 채운다.
+    setStreaming('');
     setStatus('sending');
 
-    void service.chat({ ...context, history }).then(
+    void service.chat({ ...context, history }, (token) => setStreaming((prev) => prev + token)).then(
       (next) => {
         const assistantMessage: ChatMessage = { role: 'assistant', content: next.message };
         setMessages((prev) => [...prev, assistantMessage]);
+        setStreaming(''); // 확정 메시지로 대체됐으니 스트리밍 버블은 비운다.
         setProposal(next.phase === 'proposing' ? next.planDraft : null);
         setStatus('idle');
       },
       () => {
+        setStreaming('');
         setStatus('chatError');
       },
     );
@@ -65,5 +71,5 @@ export function usePlanChat(context: PlanChatContext): PlanChat {
     }
   };
 
-  return { messages, proposal, status, send, confirm };
+  return { messages, streaming, proposal, status, send, confirm };
 }

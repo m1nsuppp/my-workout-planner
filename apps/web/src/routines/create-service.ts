@@ -14,8 +14,8 @@ export function createRoutineService(repository: RoutineRepository): RoutineServ
     async create(draft) {
       return await repository.create(draft);
     },
-    async chat(history) {
-      return await repository.chat(history);
+    async chat(history, onDelta) {
+      return await repository.chat(history, onDelta);
     },
   };
 }

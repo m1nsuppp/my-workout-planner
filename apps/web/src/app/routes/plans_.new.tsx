@@ -108,7 +108,15 @@ function PlanChatScreen({
             content={message.content}
           />
         ))}
-        {chat.status === 'sending' && <p className="text-sm text-neutral-400">코치가 작성 중…</p>}
+        {chat.streaming !== '' && (
+          <MessageBubble
+            role="assistant"
+            content={chat.streaming}
+          />
+        )}
+        {chat.status === 'sending' && chat.streaming === '' && (
+          <p className="text-sm text-neutral-400">코치가 작성 중…</p>
+        )}
         {chat.status === 'chatError' && (
           <p className="text-sm text-red-600">응답을 받지 못했어요. 다시 보내주세요.</p>
         )}

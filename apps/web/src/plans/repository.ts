@@ -35,8 +35,8 @@ export interface PlanRepository {
   create: (draft: PlanDraft) => Promise<Plan>;
   // 루틴의 다음 차례 Day 자동 제시(계획 생성 진입 시 기본 Day).
   nextDay: (routineId: string) => Promise<NextDay>;
-  // 대화 한 턴 → 다음 응답. 성공은 봉투 없는 raw proposal, 실패만 봉투(ApiError).
-  chat: (input: PlanChatInput) => Promise<PlanProposal>;
+  // 대화 한 턴 → 다음 응답. message 토큰은 onDelta로 흘리고, 끝에 raw proposal을 돌려준다. 실패는 ApiError.
+  chat: (input: PlanChatInput, onDelta?: (text: string) => void) => Promise<PlanProposal>;
   // 운동 실행(S7) — 상태 전이(시작/종료), 세트 실제값 기록.
   updateStatus: (planId: string, status: PlanStatusUpdate) => Promise<Plan>;
   updateSet: (setId: string, record: SetRecordInput) => Promise<PlannedSet>;

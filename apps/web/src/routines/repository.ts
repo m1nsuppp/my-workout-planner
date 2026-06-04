@@ -19,6 +19,7 @@ export interface RoutineRepository {
   list: () => Promise<Routine[]>;
   get: (id: string) => Promise<Routine>;
   create: (draft: RoutineDraft) => Promise<Routine>;
-  // 대화 기록을 보내 다음 응답을 받는다. 성공은 봉투 없는 raw proposal, 실패만 봉투(ApiError).
-  chat: (history: ChatMessage[]) => Promise<RoutineProposal>;
+  // 대화 기록을 보내 다음 응답을 받는다. message 토큰은 onDelta로 흘리고, 끝에 raw proposal을 돌려준다.
+  // 실패는 ApiError로 던진다(미인증·검증오류·LLM).
+  chat: (history: ChatMessage[], onDelta?: (text: string) => void) => Promise<RoutineProposal>;
 }

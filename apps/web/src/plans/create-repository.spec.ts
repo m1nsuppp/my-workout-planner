@@ -54,26 +54,39 @@ describe('PlanRepository', () => {
     });
   });
 
-  it('chat 성공은 봉투 없는 raw proposal을 그대로 돌려준다', async () => {
+  it('chat 성공은 result 이벤트의 raw proposal을 돌려주고 토큰을 onDelta로 흘린다', async () => {
     const http = createFakeHttpClient();
     const proposal = { phase: 'asking', message: '컨디션 어때요?' };
-    http.stub('POST', '/api/plans/chat', { status: 200, body: proposal });
-
-    const result = await createPlanRepository(http).chat({
-      routineId: 'r1',
-      routineDayLabel: '상체 A',
-      date: '2026-05-25',
-      history: [{ role: 'user', content: '계획 짜줘' }],
+    http.stubStream('POST', '/api/plans/chat', {
+      deltas: ['컨디션 ', '어때요?'],
+      outcome: { status: 200, event: 'result', data: proposal },
     });
 
+    let streamed = '';
+    const result = await createPlanRepository(http).chat(
+      {
+        routineId: 'r1',
+        routineDayLabel: '상체 A',
+        date: '2026-05-25',
+        history: [{ role: 'user', content: '계획 짜줘' }],
+      },
+      (t) => {
+        streamed += t;
+      },
+    );
+
     expect(result).toEqual(proposal);
+    expect(streamed).toBe('컨디션 어때요?');
   });
 
-  it('chat 실패(비200)는 봉투를 ApiResponseError로 승격한다', async () => {
+  it('chat의 error 이벤트는 ApiResponseError로 승격한다', async () => {
     const http = createFakeHttpClient();
-    http.stub('POST', '/api/plans/chat', {
-      status: 502,
-      body: { ok: false, error: { code: 'LLM_FAILED', message: 'AI 응답 생성에 실패했어요.' } },
+    http.stubStream('POST', '/api/plans/chat', {
+      outcome: {
+        status: 200,
+        event: 'error',
+        data: { code: 'LLM_FAILED', message: 'AI 응답 생성에 실패했어요.' },
+      },
     });
 
     const result = createPlanRepository(http).chat({
@@ -84,7 +97,7 @@ describe('PlanRepository', () => {
     });
 
     await expect(result).rejects.toBeInstanceOf(ApiResponseError);
-    await expect(result).rejects.toMatchObject({ code: 'LLM_FAILED', status: 502 });
+    await expect(result).rejects.toMatchObject({ code: 'LLM_FAILED' });
   });
 
   it('updateStatus는 상태를 보내고 갱신된 계획을 돌려준다', async () => {
