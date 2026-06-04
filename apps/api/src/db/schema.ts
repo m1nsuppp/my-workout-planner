@@ -112,6 +112,14 @@ export const planExerciseMuscles = sqliteTable(
   (t) => [primaryKey({ columns: [t.planExerciseId, t.muscleGroup] })],
 );
 
+// 코치 변경안 적용 이력 = 멱등성 키 저장소. 같은 키의 재적용을 막아 delta 누적(0.8×0.8) 사고를 차단한다.
+// idempotencyKey가 PK라 두 번째 적용은 PK 충돌 → 서비스가 409로 변환한다.
+export const coachApplications = sqliteTable('coach_applications', {
+  idempotencyKey: text('idempotency_key').primaryKey(),
+  planId: text('plan_id').notNull(), // FK 미사용 — 추적용
+  appliedAt: text('applied_at').notNull(),
+});
+
 // 계획 세트 = 목표값 + (선택)실제 수행값. actual은 세트당 최대 1개라 컬럼으로 흡수.
 export const plannedSets = sqliteTable(
   'planned_sets',
