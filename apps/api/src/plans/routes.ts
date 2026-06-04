@@ -6,6 +6,8 @@ import {
   NextDayResponseDto,
   PlanChatRequestDto,
   UpdatePlanStatusRequestDto,
+  UpdateSetRequestDto,
+  UpdateSetResponseDto,
 } from '@workout/contracts';
 import type { Env } from '../env';
 import { getUserId } from '../auth';
@@ -123,6 +125,30 @@ export function registerPlanRoutes(app: Hono<{ Bindings: Env }>, deps: PlanDeps)
       okBody(NextDayResponseDto, { routineDayId: next.routineDayId, label: next.label }),
       Status.OK,
     );
+  });
+
+  // 세트 실제 수행값 기록·정정(S7). completedAt은 클라가 못 정하고 서버 시각으로 찍는다.
+  app.patch('/api/sets/:id', async (c) => {
+    const userId = await authenticate(c);
+    if (userId === null) {
+      return c.json(failBody('UNAUTHENTICATED', '로그인이 필요합니다.'), Status.UNAUTHENTICATED);
+    }
+
+    const parsed = UpdateSetRequestDto.safeParse(await c.req.json());
+    if (!parsed.success) {
+      return c.json(
+        failBody('VALIDATION_FAILED', '세트 기록 형식이 올바르지 않습니다.', parsed.error.issues),
+        Status.UNPROCESSABLE,
+      );
+    }
+
+    const actual = { ...parsed.data, completedAt: deps.now().toISOString() };
+    const set = await deps.planService(c.env).updateSet(userId, c.req.param('id'), actual);
+    if (set === null) {
+      return c.json(failBody('NOT_FOUND', '세트를 찾을 수 없습니다.'), Status.NOT_FOUND);
+    }
+
+    return c.json(okBody(UpdateSetResponseDto, set), Status.OK);
   });
 
   // 계획 생성 대화 — 클라는 식별자(routineId/routineDayLabel/date)만 보내고,

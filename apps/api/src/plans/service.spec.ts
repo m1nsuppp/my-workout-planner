@@ -35,6 +35,7 @@ const createFakePlanRepository = (overrides: Partial<PlanRepository> = {}): Plan
 
       return target;
     },
+    updateSet: async () => null,
     ...overrides,
   };
 };

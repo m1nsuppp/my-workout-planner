@@ -149,6 +149,42 @@ export function createD1PlanRepository(d1: D1Database): PlanRepository {
 
       return await hydrate(db, updated[0]);
     },
+    updateSet: async (userId, setId, actual) => {
+      // 소유권 확인 — planned_sets는 userId가 없으므로 plan_exercises·plans를 거쳐 검사한다.
+      const owner = await db
+        .select({ id: plannedSets.id })
+        .from(plannedSets)
+        .innerJoin(planExercises, eq(plannedSets.planExerciseId, planExercises.id))
+        .innerJoin(plans, eq(planExercises.planId, plans.id))
+        .where(and(eq(plannedSets.id, setId), eq(plans.userId, userId)))
+        .get();
+      if (owner === undefined) {
+        return null;
+      }
+
+      const updated = await db
+        .update(plannedSets)
+        .set({
+          actualWeightKg: actual.weightKg,
+          actualReps: actual.reps,
+          actualRir: actual.rir,
+          completedAt: actual.completedAt,
+        })
+        .where(eq(plannedSets.id, setId))
+        .returning();
+      const row = updated[0];
+
+      return {
+        targetWeightKg: row.targetWeightKg,
+        targetReps: row.targetReps,
+        actual: {
+          weightKg: row.actualWeightKg ?? actual.weightKg,
+          reps: row.actualReps ?? actual.reps,
+          rir: row.actualRir ?? actual.rir,
+          completedAt: row.completedAt ?? actual.completedAt,
+        },
+      };
+    },
   };
 }
 

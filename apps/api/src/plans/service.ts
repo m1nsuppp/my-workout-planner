@@ -1,4 +1,12 @@
-import type { NewPlan, OverloadRecord, PlanRecord, PlanRepository, RoutineDayRef } from './repository';
+import type {
+  NewPlan,
+  NewPlannedSet,
+  OverloadRecord,
+  PlanRecord,
+  PlanRepository,
+  RoutineDayRef,
+  SetRecordInput,
+} from './repository';
 
 // 도메인 규칙 위반. 컨트롤러가 422 봉투로 변환한다.
 export class PlanValidationError extends Error {
@@ -40,6 +48,12 @@ export interface PlanService {
   ) => Promise<OverloadRecord[]>;
   // 상태 전이. 없으면 null(404), 허용 안 된 전이면 InvalidPlanTransitionError(409).
   updateStatus: (userId: string, id: string, status: string) => Promise<PlanRecord | null>;
+  // 세트 실제 수행값 기록. setId가 없거나 타 유저면 null. completedAt은 라우트가 찍어 넘긴다.
+  updateSet: (
+    userId: string,
+    setId: string,
+    actual: SetRecordInput,
+  ) => Promise<NewPlannedSet | null>;
 }
 
 export function createPlanService(repo: PlanRepository): PlanService {
@@ -75,6 +89,7 @@ export function createPlanService(repo: PlanRepository): PlanService {
 
       return await repo.updateStatus(userId, id, status);
     },
+    updateSet: async (userId, setId, actual) => await repo.updateSet(userId, setId, actual),
   };
 }
 

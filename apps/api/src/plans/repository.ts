@@ -71,4 +71,11 @@ export interface PlanRepository {
   // 계획 상태를 갱신하고 갱신된 레코드를 돌려준다. 없거나 타 유저면 null.
   // 전이 유효성(역전이 금지 등)은 service가 강제하고, 저장소는 순수 갱신만 한다.
   updateStatus: (userId: string, id: string, status: string) => Promise<PlanRecord | null>;
+  // 세트의 실제 수행값(actual)을 기록·정정한다. setId가 없거나 타 유저 계획이면 null.
+  // 소유권은 planned_sets → plan_exercises → plans.userId 경로로 확인한다.
+  updateSet: (
+    userId: string,
+    setId: string,
+    actual: SetRecordInput,
+  ) => Promise<NewPlannedSet | null>;
 }

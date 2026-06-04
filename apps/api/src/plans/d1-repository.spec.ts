@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/d1';
 import { describe, expect, it } from 'vitest';
-import { plans } from '../db/schema';
+import { planExercises, plannedSets, plans } from '../db/schema';
 import { createD1RoutineRepository } from '../routines/d1-repository';
 import { createD1PlanRepository } from './d1-repository';
 import type { NewPlan, PlanRecord, RoutineDayRef } from './repository';
@@ -319,5 +319,67 @@ describe('createD1PlanRepository.updateStatus', () => {
 
     expect(await repo.updateStatus('us2', 'no-such', 'in_progress')).toBeNull();
     expect(await repo.updateStatus('intruder', created.id, 'in_progress')).toBeNull();
+  });
+});
+
+describe('createD1PlanRepository.updateSet', () => {
+  const plan: NewPlan = {
+    routineId: 'r1',
+    routineDayLabel: '상체',
+    date: '2026-05-25',
+    exercises: [
+      { name: '벤치', muscleGroups: ['chest'], sets: [{ targetWeightKg: 50, targetReps: 8 }] },
+    ],
+  };
+
+  // create는 도메인 타입이라 set id를 안 돌려준다 — D1을 직접 조회해 첫 세트 id를 얻는다.
+  const firstSetId = async (planId: string): Promise<string> => {
+    const db = drizzle(env.DB);
+    const ex = await db.select().from(planExercises).where(eq(planExercises.planId, planId)).get();
+    if (ex === undefined) {
+      throw new Error('plan_exercise 없음');
+    }
+    const set = await db
+      .select()
+      .from(plannedSets)
+      .where(eq(plannedSets.planExerciseId, ex.id))
+      .get();
+    if (set === undefined) {
+      throw new Error('planned_set 없음');
+    }
+
+    return set.id;
+  };
+
+  it('세트 actual을 기록하고 갱신된 세트를 돌려준다', async () => {
+    const repo = createD1PlanRepository(env.DB);
+    const created = await repo.create('set1', plan);
+    const setId = await firstSetId(created.id);
+
+    const updated = await repo.updateSet('set1', setId, {
+      weightKg: 52.5,
+      reps: 7,
+      rir: 1,
+      completedAt: '2026-05-25T10:00:00.000Z',
+    });
+    expect(updated?.targetWeightKg).toBe(50);
+    expect(updated?.actual).toEqual({
+      weightKg: 52.5,
+      reps: 7,
+      rir: 1,
+      completedAt: '2026-05-25T10:00:00.000Z',
+    });
+    // 영속됐는지 계획 재조회로 확인
+    expect((await repo.findById('set1', created.id))?.exercises[0].sets[0].actual?.rir).toBe(1);
+  });
+
+  it('없거나 타 유저 세트는 null (소유권 격리)', async () => {
+    const repo = createD1PlanRepository(env.DB);
+    const created = await repo.create('set2', plan);
+    const setId = await firstSetId(created.id);
+    const actual = { weightKg: 50, reps: 8, rir: 2, completedAt: '2026-05-25T10:00:00.000Z' };
+
+    expect(await repo.updateSet('set2', 'no-such', actual)).toBeNull();
+    expect(await repo.updateSet('intruder', setId, actual)).toBeNull();
   });
 });

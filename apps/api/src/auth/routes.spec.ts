@@ -41,6 +41,7 @@ const makeApp = (authService: AuthService) =>
       nextDay: async () => null,
       overloadFor: async () => [],
       updateStatus: async () => null,
+      updateSet: async () => null,
     }),
     planChatService: () => ({
       reply: async () => {

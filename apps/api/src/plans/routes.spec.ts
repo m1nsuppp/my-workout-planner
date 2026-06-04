@@ -4,12 +4,13 @@ import {
   GetPlanResponseDto,
   NextDayResponseDto,
   PlanChatResultDto,
+  UpdateSetResponseDto,
 } from '@workout/contracts';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../app';
 import type { SessionRepository } from '../auth/session-repository';
 import { LlmError } from '../llm/client';
-import type { PlanRecord, RoutineDayRef } from './repository';
+import type { NewPlannedSet, PlanRecord, RoutineDayRef } from './repository';
 import { InvalidPlanTransitionError, PlanValidationError, type PlanService } from './service';
 
 const sampleRecord: PlanRecord = {
@@ -33,6 +34,7 @@ interface FakeOpts {
   chatError?: Error;
   updated?: PlanRecord;
   updateStatusError?: Error;
+  updatedSet?: NewPlannedSet;
 }
 const createFakePlanService = (opts: FakeOpts = {}): PlanService => ({
   create: async () => {
@@ -52,6 +54,7 @@ const createFakePlanService = (opts: FakeOpts = {}): PlanService => ({
 
     return opts.updated ?? null;
   },
+  updateSet: async () => opts.updatedSet ?? null,
 });
 
 // 이 스위트는 plan 라우트만 검증한다. 다른 도메인 deps는 호출되지 않는 더미.
@@ -332,6 +335,48 @@ describe('PATCH /api/plans/:id/status', () => {
 
   it('인증 없음 → 401', async () => {
     const res = await patchStatus({}, { status: 'in_progress' }, false);
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('PATCH /api/sets/:id', () => {
+  const patchSet = async (opts: FakeOpts, body: unknown, authenticated = true) =>
+    await appWith(opts).request(
+      '/api/sets/s1',
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', ...(authenticated ? authed : {}) },
+        body: JSON.stringify(body),
+      },
+      devEnv,
+    );
+
+  it('유효 기록 → 200 + actual 담긴 세트', async () => {
+    const updatedSet: NewPlannedSet = {
+      targetWeightKg: 50,
+      targetReps: 8,
+      actual: { weightKg: 50, reps: 8, rir: 2, completedAt: '2026-05-30T00:00:00.000Z' },
+    };
+    const res = await patchSet({ updatedSet }, { weightKg: 50, reps: 8, rir: 2 });
+    expect(res.status).toBe(200);
+    const json = UpdateSetResponseDto.parse(await res.json());
+    if (json.ok) {
+      expect(json.data.actual?.rir).toBe(2);
+    }
+  });
+
+  it('없는 세트 → 404 NOT_FOUND', async () => {
+    const res = await patchSet({}, { weightKg: 50, reps: 8, rir: 2 });
+    expect(res.status).toBe(404);
+  });
+
+  it('잘못된 값(음수 reps) → 422 VALIDATION_FAILED', async () => {
+    const res = await patchSet({}, { weightKg: 50, reps: -1, rir: 2 });
+    expect(res.status).toBe(422);
+  });
+
+  it('인증 없음 → 401', async () => {
+    const res = await patchSet({}, { weightKg: 50, reps: 8, rir: 2 }, false);
     expect(res.status).toBe(401);
   });
 });
