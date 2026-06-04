@@ -65,11 +65,15 @@ function RoutineCard({ routine }: { routine: Routine }): JSX.Element {
   const exerciseCount = routine.days.reduce((sum, day) => sum + day.exercises.length, 0);
 
   return (
-    <article className="rounded-xl border border-neutral-200 p-4">
+    <Link
+      to="/routines/$id"
+      params={{ id: routine.id }}
+      className="block rounded-xl border border-neutral-200 p-4"
+    >
       <h2 className="font-semibold text-neutral-900">{routine.name}</h2>
       <p className="mt-1 text-sm text-neutral-500">
         {routine.splitType} · 주 {routine.daysPerWeek}회 · 운동 {exerciseCount}개
       </p>
-    </article>
+    </Link>
   );
 }

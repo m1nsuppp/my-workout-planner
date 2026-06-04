@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as RoutinesRouteImport } from './routes/routines'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RoutinesNewRouteImport } from './routes/routines_.new'
+import { Route as RoutinesIdRouteImport } from './routes/routines_.$id'
 
 const RoutinesRoute = RoutinesRouteImport.update({
   id: '/routines',
@@ -28,34 +29,43 @@ const RoutinesNewRoute = RoutinesNewRouteImport.update({
   path: '/routines/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RoutinesIdRoute = RoutinesIdRouteImport.update({
+  id: '/routines_/$id',
+  path: '/routines/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/routines': typeof RoutinesRoute
+  '/routines/$id': typeof RoutinesIdRoute
   '/routines/new': typeof RoutinesNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/routines': typeof RoutinesRoute
+  '/routines/$id': typeof RoutinesIdRoute
   '/routines/new': typeof RoutinesNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/routines': typeof RoutinesRoute
+  '/routines_/$id': typeof RoutinesIdRoute
   '/routines_/new': typeof RoutinesNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/routines' | '/routines/new'
+  fullPaths: '/' | '/routines' | '/routines/$id' | '/routines/new'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/routines' | '/routines/new'
-  id: '__root__' | '/' | '/routines' | '/routines_/new'
+  to: '/' | '/routines' | '/routines/$id' | '/routines/new'
+  id: '__root__' | '/' | '/routines' | '/routines_/$id' | '/routines_/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   RoutinesRoute: typeof RoutinesRoute
+  RoutinesIdRoute: typeof RoutinesIdRoute
   RoutinesNewRoute: typeof RoutinesNewRoute
 }
 
@@ -82,12 +92,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RoutinesNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/routines_/$id': {
+      id: '/routines_/$id'
+      path: '/routines/$id'
+      fullPath: '/routines/$id'
+      preLoaderRoute: typeof RoutinesIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   RoutinesRoute: RoutinesRoute,
+  RoutinesIdRoute: RoutinesIdRoute,
   RoutinesNewRoute: RoutinesNewRoute,
 }
 export const routeTree = rootRouteImport
