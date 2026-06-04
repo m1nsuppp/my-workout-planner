@@ -18,7 +18,15 @@ const draft: PlanDraft = CreatePlanRequestDto.parse({
 const createdPlan: Plan = (() => {
   const envelope = CreatePlanResponseDto.parse({
     ok: true,
-    data: { ...draft, id: 'p1', status: 'scheduled', createdAt: '2026-05-25T00:00:00.000Z' },
+    data: {
+      ...draft,
+      id: 'p1',
+      status: 'scheduled',
+      createdAt: '2026-05-25T00:00:00.000Z',
+      exercises: [
+        { name: '벤치', muscleGroups: ['chest'], sets: [{ id: 's1', targetWeightKg: 50, targetReps: 8 }] },
+      ],
+    },
   });
   if (!envelope.ok) {
     throw new Error('unreachable');

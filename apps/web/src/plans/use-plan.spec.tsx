@@ -18,7 +18,11 @@ const plan: Plan = (() => {
       date: '2026-05-25',
       status: 'scheduled',
       exercises: [
-        { name: '벤치', muscleGroups: ['chest'], sets: [{ targetWeightKg: 50, targetReps: 8 }] },
+        {
+          name: '벤치',
+          muscleGroups: ['chest'],
+          sets: [{ id: 's1', targetWeightKg: 50, targetReps: 8 }],
+        },
       ],
       createdAt: '2026-05-25T00:00:00.000Z',
     },

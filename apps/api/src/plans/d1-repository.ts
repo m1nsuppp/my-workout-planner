@@ -175,6 +175,7 @@ export function createD1PlanRepository(d1: D1Database): PlanRepository {
       const row = updated[0];
 
       return {
+        id: row.id,
         targetWeightKg: row.targetWeightKg,
         targetReps: row.targetReps,
         actual: {
@@ -245,7 +246,13 @@ async function insert(db: Db, userId: string, plan: NewPlan): Promise<PlanRecord
 
   await db.batch([head, ...rest]);
 
-  return { id, status, createdAt, ...plan };
+  // 저장 후 복원해 돌려준다 — 세트마다 부여된 id까지 포함된 PlanRecord가 된다.
+  const row = await db.select().from(plans).where(eq(plans.id, id)).get();
+  if (row === undefined) {
+    throw new Error('방금 생성한 계획을 찾지 못했습니다.');
+  }
+
+  return await hydrate(db, row);
 }
 
 // 한 계획의 exercises/muscles/sets를 읽어 중첩 구조로 복원. null인 optional은 undefined로 정규화.
@@ -295,6 +302,7 @@ async function hydrate(db: Db, row: PlanRow): Promise<PlanRecord> {
       sets: sets
         .filter((s) => s.planExerciseId === e.id)
         .map((s) => ({
+          id: s.id,
           targetWeightKg: s.targetWeightKg,
           targetReps: s.targetReps,
           actual:

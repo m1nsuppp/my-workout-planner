@@ -33,10 +33,25 @@ export interface NewPlan {
   exercises: NewPlanExercise[];
 }
 
-export interface PlanRecord extends NewPlan {
+// 저장된(복원된) 계획 — 세트마다 서버가 부여한 id가 붙는다(S7의 PATCH /sets/:id 대상).
+export interface PlannedSetRecord extends NewPlannedSet {
+  id: string;
+}
+
+export interface PlanExerciseRecord extends Omit<NewPlanExercise, 'sets'> {
+  sets: PlannedSetRecord[];
+}
+
+export interface PlanRecord {
   id: string;
   status: string; // 'scheduled' | 'in_progress' | 'completed'
   createdAt: string;
+  routineId: string;
+  routineDayId?: string | null;
+  routineDayLabel: string;
+  date: string;
+  overloadNote?: string;
+  exercises: PlanExerciseRecord[];
 }
 
 // 루틴의 한 "Day" 참조. next-day 계산 결과 — 어느 Day를 이번에 소화할지.
@@ -77,5 +92,5 @@ export interface PlanRepository {
     userId: string,
     setId: string,
     actual: SetRecordInput,
-  ) => Promise<NewPlannedSet | null>;
+  ) => Promise<PlannedSetRecord | null>;
 }

@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { createApp } from '../app';
 import type { SessionRepository } from '../auth/session-repository';
 import { LlmError } from '../llm/client';
-import type { NewPlannedSet, PlanRecord, RoutineDayRef } from './repository';
+import type { PlannedSetRecord, PlanRecord, RoutineDayRef } from './repository';
 import { InvalidPlanTransitionError, PlanValidationError, type PlanService } from './service';
 
 const sampleRecord: PlanRecord = {
@@ -21,7 +21,11 @@ const sampleRecord: PlanRecord = {
   routineDayLabel: '상체 A',
   date: '2026-05-25',
   exercises: [
-    { name: '벤치프레스', muscleGroups: ['chest'], sets: [{ targetWeightKg: 50, targetReps: 8 }] },
+    {
+      name: '벤치프레스',
+      muscleGroups: ['chest'],
+      sets: [{ id: 's1', targetWeightKg: 50, targetReps: 8 }],
+    },
   ],
 };
 
@@ -34,7 +38,7 @@ interface FakeOpts {
   chatError?: Error;
   updated?: PlanRecord;
   updateStatusError?: Error;
-  updatedSet?: NewPlannedSet;
+  updatedSet?: PlannedSetRecord;
 }
 const createFakePlanService = (opts: FakeOpts = {}): PlanService => ({
   create: async () => {
@@ -352,7 +356,8 @@ describe('PATCH /api/sets/:id', () => {
     );
 
   it('유효 기록 → 200 + actual 담긴 세트', async () => {
-    const updatedSet: NewPlannedSet = {
+    const updatedSet: PlannedSetRecord = {
+      id: 's1',
       targetWeightKg: 50,
       targetReps: 8,
       actual: { weightKg: 50, reps: 8, rir: 2, completedAt: '2026-05-30T00:00:00.000Z' },

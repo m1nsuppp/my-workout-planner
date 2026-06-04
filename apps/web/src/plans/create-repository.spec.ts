@@ -11,7 +11,20 @@ const draft = CreatePlanRequestDto.parse({
   date: '2026-05-25',
   exercises: [{ name: '벤치', muscleGroups: ['chest'], sets: [{ targetWeightKg: 50, targetReps: 8 }] }],
 });
-const plan = { ...draft, id: 'p1', status: 'scheduled', createdAt: '2026-05-25T00:00:00.000Z' };
+// 저장된 계획은 세트마다 id가 붙는다(draft엔 없음) — get/create 응답은 이 형태로 검증된다.
+const plan = {
+  ...draft,
+  id: 'p1',
+  status: 'scheduled',
+  createdAt: '2026-05-25T00:00:00.000Z',
+  exercises: [
+    {
+      name: '벤치',
+      muscleGroups: ['chest'],
+      sets: [{ id: 's1', targetWeightKg: 50, targetReps: 8 }],
+    },
+  ],
+};
 
 describe('PlanRepository', () => {
   it('get은 성공 봉투의 data를 도메인으로 돌려준다', async () => {

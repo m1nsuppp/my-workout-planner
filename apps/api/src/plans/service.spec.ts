@@ -10,11 +10,20 @@ const createFakePlanRepository = (overrides: Partial<PlanRepository> = {}): Plan
 
   return {
     create: async (userId, plan) => {
+      const id = `p${++seq}`;
       const record: PlanRecord = {
-        id: `p${++seq}`,
+        id,
         status: 'scheduled',
         createdAt: new Date().toISOString(),
-        ...plan,
+        routineId: plan.routineId,
+        routineDayId: plan.routineDayId,
+        routineDayLabel: plan.routineDayLabel,
+        date: plan.date,
+        overloadNote: plan.overloadNote,
+        exercises: plan.exercises.map((ex, i) => ({
+          ...ex,
+          sets: ex.sets.map((s, j) => ({ ...s, id: `${id}-e${i}-s${j}` })),
+        })),
       };
       const list = store.get(userId) ?? [];
       list.push(record);
