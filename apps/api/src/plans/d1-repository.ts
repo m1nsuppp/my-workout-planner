@@ -137,6 +137,18 @@ export function createD1PlanRepository(d1: D1Database): PlanRepository {
 
       return row?.id ?? null;
     },
+    updateStatus: async (userId, id, status) => {
+      const updated = await db
+        .update(plans)
+        .set({ status })
+        .where(and(eq(plans.id, id), eq(plans.userId, userId)))
+        .returning();
+      if (updated.length === 0) {
+        return null;
+      }
+
+      return await hydrate(db, updated[0]);
+    },
   };
 }
 

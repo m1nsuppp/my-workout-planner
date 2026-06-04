@@ -26,6 +26,15 @@ const createFakePlanRepository = (overrides: Partial<PlanRepository> = {}): Plan
     nextDay: async () => null,
     lastOverload: async () => [],
     findDayId: async () => null,
+    updateStatus: async (userId, id, status) => {
+      const target = (store.get(userId) ?? []).find((p) => p.id === id);
+      if (target === undefined) {
+        return null;
+      }
+      target.status = status;
+
+      return target;
+    },
     ...overrides,
   };
 };
@@ -121,6 +130,37 @@ describe('createPlanService.overloadFor', () => {
   it('label이 없으면 빈 배열(과부하 근거 없음)', async () => {
     const repo = createFakePlanRepository({ findDayId: async () => null });
     expect(await createPlanService(repo).overloadFor('u1', 'r1', '없는Day')).toEqual([]);
+  });
+});
+
+describe('createPlanService.updateStatus', () => {
+  it('scheduled→in_progress→completed 전이를 허용한다', async () => {
+    const { service } = setup();
+    const p = await service.create('u1', validPlan());
+
+    expect((await service.updateStatus('u1', p.id, 'in_progress'))?.status).toBe('in_progress');
+    expect((await service.updateStatus('u1', p.id, 'completed'))?.status).toBe('completed');
+  });
+
+  it('역전이(completed→in_progress)는 거부한다', async () => {
+    const { service } = setup();
+    const p = await service.create('u1', validPlan());
+    await service.updateStatus('u1', p.id, 'in_progress');
+    await service.updateStatus('u1', p.id, 'completed');
+
+    await expect(service.updateStatus('u1', p.id, 'in_progress')).rejects.toThrow();
+  });
+
+  it('중간 단계를 건너뛰는 전이(scheduled→completed)는 거부한다', async () => {
+    const { service } = setup();
+    const p = await service.create('u1', validPlan());
+
+    await expect(service.updateStatus('u1', p.id, 'completed')).rejects.toThrow();
+  });
+
+  it('없는 계획은 null', async () => {
+    const { service } = setup();
+    expect(await service.updateStatus('u1', 'nope', 'in_progress')).toBeNull();
   });
 });
 

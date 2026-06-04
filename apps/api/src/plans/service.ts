@@ -8,6 +8,24 @@ export class PlanValidationError extends Error {
   }
 }
 
+// 허용되지 않은 상태 전이(역전이·completed에서 출발 등). 컨트롤러가 409로 변환한다.
+export class InvalidPlanTransitionError extends Error {
+  constructor(
+    readonly from: string,
+    readonly to: string,
+  ) {
+    super(`invalid plan transition: ${from} → ${to}`);
+    this.name = 'InvalidPlanTransitionError';
+  }
+}
+
+// 허용 전이만 명시(data-model 상태기계): scheduled→in_progress→completed, 그 외 거부.
+const ALLOWED_TRANSITIONS: Record<string, readonly string[]> = {
+  scheduled: ['in_progress'],
+  in_progress: ['completed'],
+  completed: [],
+};
+
 // 애플리케이션 레이어. 도메인 의미(불변식)를 강제하고 영속을 오케스트레이션한다.
 // 구조 검증(타입·수치 부호)은 contract(zod)가 경계에서 이미 거른다.
 export interface PlanService {
@@ -20,6 +38,8 @@ export interface PlanService {
     routineId: string,
     routineDayLabel: string,
   ) => Promise<OverloadRecord[]>;
+  // 상태 전이. 없으면 null(404), 허용 안 된 전이면 InvalidPlanTransitionError(409).
+  updateStatus: (userId: string, id: string, status: string) => Promise<PlanRecord | null>;
 }
 
 export function createPlanService(repo: PlanRepository): PlanService {
@@ -43,6 +63,17 @@ export function createPlanService(repo: PlanRepository): PlanService {
       const dayId = await repo.findDayId(userId, routineId, routineDayLabel);
 
       return dayId === null ? [] : await repo.lastOverload(userId, routineId, dayId);
+    },
+    updateStatus: async (userId, id, status) => {
+      const current = await repo.findById(userId, id);
+      if (current === null) {
+        return null;
+      }
+      if (!(ALLOWED_TRANSITIONS[current.status] ?? []).includes(status)) {
+        throw new InvalidPlanTransitionError(current.status, status);
+      }
+
+      return await repo.updateStatus(userId, id, status);
     },
   };
 }

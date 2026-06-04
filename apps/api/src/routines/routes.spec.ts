@@ -86,6 +86,7 @@ const appWith = (opts: FakeOpts = {}) =>
       get: async () => null,
       nextDay: async () => null,
       overloadFor: async () => [],
+      updateStatus: async () => null,
     }),
     planChatService: () => ({
       reply: async () => {

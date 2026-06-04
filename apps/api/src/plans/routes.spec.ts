@@ -10,7 +10,7 @@ import { createApp } from '../app';
 import type { SessionRepository } from '../auth/session-repository';
 import { LlmError } from '../llm/client';
 import type { PlanRecord, RoutineDayRef } from './repository';
-import { PlanValidationError, type PlanService } from './service';
+import { InvalidPlanTransitionError, PlanValidationError, type PlanService } from './service';
 
 const sampleRecord: PlanRecord = {
   id: 'p1',
@@ -31,6 +31,8 @@ interface FakeOpts {
   nextDay?: RoutineDayRef | null;
   chatReply?: PlanChatResultDto;
   chatError?: Error;
+  updated?: PlanRecord;
+  updateStatusError?: Error;
 }
 const createFakePlanService = (opts: FakeOpts = {}): PlanService => ({
   create: async () => {
@@ -43,6 +45,13 @@ const createFakePlanService = (opts: FakeOpts = {}): PlanService => ({
   get: async () => opts.found ?? null,
   nextDay: async () => opts.nextDay ?? null,
   overloadFor: async () => [],
+  updateStatus: async () => {
+    if (opts.updateStatusError !== undefined) {
+      throw opts.updateStatusError;
+    }
+
+    return opts.updated ?? null;
+  },
 });
 
 // 이 스위트는 plan 라우트만 검증한다. 다른 도메인 deps는 호출되지 않는 더미.
@@ -275,6 +284,54 @@ describe('POST /api/plans/chat', () => {
 
   it('인증 없음 → 401', async () => {
     const res = await postChat({}, chatBody, false);
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('PATCH /api/plans/:id/status', () => {
+  const patchStatus = async (opts: FakeOpts, body: unknown, authenticated = true) =>
+    await appWith(opts).request(
+      '/api/plans/p1/status',
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', ...(authenticated ? authed : {}) },
+        body: JSON.stringify(body),
+      },
+      devEnv,
+    );
+
+  it('유효 전이 → 200 + 갱신된 계획', async () => {
+    const updated: PlanRecord = { ...sampleRecord, status: 'in_progress' };
+    const res = await patchStatus({ updated }, { status: 'in_progress' });
+    expect(res.status).toBe(200);
+    const json = GetPlanResponseDto.parse(await res.json());
+    if (json.ok) {
+      expect(json.data.status).toBe('in_progress');
+    }
+  });
+
+  it('허용 안 된 전이 → 409 INVALID_STATE_TRANSITION', async () => {
+    const res = await patchStatus(
+      { updateStatusError: new InvalidPlanTransitionError('completed', 'in_progress') },
+      { status: 'in_progress' },
+    );
+    expect(res.status).toBe(409);
+    const json = ApiFailureSchema.parse(await res.json());
+    expect(json.error.code).toBe('INVALID_STATE_TRANSITION');
+  });
+
+  it('없는 계획 → 404 NOT_FOUND', async () => {
+    const res = await patchStatus({}, { status: 'in_progress' });
+    expect(res.status).toBe(404);
+  });
+
+  it('잘못된 status 값 → 422 VALIDATION_FAILED', async () => {
+    const res = await patchStatus({}, { status: 'scheduled' }); // 요청으로 못 보내는 값
+    expect(res.status).toBe(422);
+  });
+
+  it('인증 없음 → 401', async () => {
+    const res = await patchStatus({}, { status: 'in_progress' }, false);
     expect(res.status).toBe(401);
   });
 });

@@ -68,4 +68,7 @@ export interface PlanRepository {
   // 루틴 내 label로 routine_days.id를 찾는다(계획 확정 시 routineDayId FK를 채우는 용도).
   // 소유 루틴에 그 label이 없으면 null(루틴 수정/삭제로 사라졌을 수 있음 → 호출측이 관대 처리).
   findDayId: (userId: string, routineId: string, label: string) => Promise<string | null>;
+  // 계획 상태를 갱신하고 갱신된 레코드를 돌려준다. 없거나 타 유저면 null.
+  // 전이 유효성(역전이 금지 등)은 service가 강제하고, 저장소는 순수 갱신만 한다.
+  updateStatus: (userId: string, id: string, status: string) => Promise<PlanRecord | null>;
 }

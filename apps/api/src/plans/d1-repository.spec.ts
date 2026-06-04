@@ -291,3 +291,33 @@ describe('createD1PlanRepository.findDayId', () => {
     expect(await repo.findDayId('intruder', routineId, '상체')).toBeNull();
   });
 });
+
+describe('createD1PlanRepository.updateStatus', () => {
+  const plan: NewPlan = {
+    routineId: 'r1',
+    routineDayLabel: '상체',
+    date: '2026-05-25',
+    exercises: [
+      { name: '벤치', muscleGroups: ['chest'], sets: [{ targetWeightKg: 50, targetReps: 8 }] },
+    ],
+  };
+
+  it('상태를 갱신하고 갱신된 레코드를 돌려준다(중첩 구조 보존)', async () => {
+    const repo = createD1PlanRepository(env.DB);
+    const created = await repo.create('us1', plan);
+
+    const updated = await repo.updateStatus('us1', created.id, 'in_progress');
+    expect(updated?.status).toBe('in_progress');
+    expect(updated?.exercises).toHaveLength(1);
+    // 영속됐는지 재조회로 확인
+    expect((await repo.findById('us1', created.id))?.status).toBe('in_progress');
+  });
+
+  it('없거나 타 유저 계획은 null (소유권 격리)', async () => {
+    const repo = createD1PlanRepository(env.DB);
+    const created = await repo.create('us2', plan);
+
+    expect(await repo.updateStatus('us2', 'no-such', 'in_progress')).toBeNull();
+    expect(await repo.updateStatus('intruder', created.id, 'in_progress')).toBeNull();
+  });
+});

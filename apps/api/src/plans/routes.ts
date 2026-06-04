@@ -5,6 +5,7 @@ import {
   GetPlanResponseDto,
   NextDayResponseDto,
   PlanChatRequestDto,
+  UpdatePlanStatusRequestDto,
 } from '@workout/contracts';
 import type { Env } from '../env';
 import { getUserId } from '../auth';
@@ -13,7 +14,7 @@ import { LlmError } from '../llm/client';
 import { Status, failBody, okBody } from '../response';
 import type { PlanChatService } from './chat-service';
 import type { NewPlan } from './repository';
-import { PlanValidationError, type PlanService } from './service';
+import { InvalidPlanTransitionError, PlanValidationError, type PlanService } from './service';
 
 export interface PlanDeps {
   planService: (env: Env) => PlanService;
@@ -68,6 +69,42 @@ export function registerPlanRoutes(app: Hono<{ Bindings: Env }>, deps: PlanDeps)
     }
 
     return c.json(okBody(GetPlanResponseDto, record), Status.OK);
+  });
+
+  // 상태 전이(운동 시작/종료). scheduled→in_progress→completed만 허용, 역전이는 409.
+  app.patch('/api/plans/:id/status', async (c) => {
+    const userId = await authenticate(c);
+    if (userId === null) {
+      return c.json(failBody('UNAUTHENTICATED', '로그인이 필요합니다.'), Status.UNAUTHENTICATED);
+    }
+
+    const parsed = UpdatePlanStatusRequestDto.safeParse(await c.req.json());
+    if (!parsed.success) {
+      return c.json(
+        failBody('VALIDATION_FAILED', '상태 형식이 올바르지 않습니다.', parsed.error.issues),
+        Status.UNPROCESSABLE,
+      );
+    }
+
+    try {
+      const record = await deps
+        .planService(c.env)
+        .updateStatus(userId, c.req.param('id'), parsed.data.status);
+      if (record === null) {
+        return c.json(failBody('NOT_FOUND', '계획을 찾을 수 없습니다.'), Status.NOT_FOUND);
+      }
+
+      return c.json(okBody(GetPlanResponseDto, record), Status.OK);
+    } catch (e) {
+      if (e instanceof InvalidPlanTransitionError) {
+        return c.json(
+          failBody('INVALID_STATE_TRANSITION', `${e.from} → ${e.to} 전이는 허용되지 않습니다.`),
+          Status.CONFLICT,
+        );
+      }
+
+      throw e;
+    }
   });
 
   // 다음 차례 Day 자동 제시 — 화면이 계획 생성 진입 시 기본 Day로 채운다(사용자가 바꿀 수 있음).

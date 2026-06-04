@@ -10,6 +10,7 @@ export const Status = {
   UNAUTHENTICATED: 401,
   FORBIDDEN: 403,
   NOT_FOUND: 404,
+  CONFLICT: 409, // 상태 역전이·멱등성 충돌 등
   UNPROCESSABLE: 422,
   BAD_GATEWAY: 502, // 상류(LLM 등) 실패
 } as const;
