@@ -1,4 +1,7 @@
 import type {
+  ApplyableChange,
+  ChatMessage,
+  CoachResponse,
   NextDay,
   Plan,
   PlanChatInput,
@@ -17,4 +20,10 @@ export interface PlanService {
   chat: (input: PlanChatInput, onDelta?: (text: string) => void) => Promise<PlanProposal>;
   updateStatus: (planId: string, status: PlanStatusUpdate) => Promise<Plan>;
   updateSet: (setId: string, record: SetRecordInput) => Promise<PlannedSet>;
+  coach: (
+    planId: string,
+    history: ChatMessage[],
+    onDelta?: (text: string) => void,
+  ) => Promise<CoachResponse>;
+  applyCoach: (planId: string, change: ApplyableChange, idempotencyKey: string) => Promise<Plan>;
 }

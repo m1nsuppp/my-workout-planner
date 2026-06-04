@@ -52,6 +52,12 @@ function fakeService(get: PlanService['get']): PlanService {
     updateSet: async () => {
       throw new Error('unused');
     },
+    coach: async () => {
+      throw new Error('unused');
+    },
+    applyCoach: async () => {
+      throw new Error('unused');
+    },
   };
 }
 

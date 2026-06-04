@@ -76,14 +76,25 @@ function WorkoutSession({ plan }: { plan: Plan }): JSX.Element {
       </div>
 
       {finishError && <p className="text-sm text-red-600">운동 종료에 실패했어요. 다시 시도해 주세요.</p>}
-      <button
-        type="button"
-        onClick={finish}
-        disabled={finishing}
-        className="rounded-lg bg-neutral-900 px-4 py-2 font-medium text-white disabled:opacity-40"
-      >
-        {finishing ? '종료하는 중…' : '운동 종료'}
-      </button>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            void navigate({ to: '/coach/$id', params: { id: plan.id } });
+          }}
+          className="flex-1 rounded-lg border border-neutral-300 px-4 py-2 font-medium text-neutral-900"
+        >
+          코치에게 물어보기
+        </button>
+        <button
+          type="button"
+          onClick={finish}
+          disabled={finishing}
+          className="flex-1 rounded-lg bg-neutral-900 px-4 py-2 font-medium text-white disabled:opacity-40"
+        >
+          {finishing ? '종료하는 중…' : '운동 종료'}
+        </button>
+      </div>
     </>
   );
 }

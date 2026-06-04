@@ -1,4 +1,6 @@
 import type {
+  CoachApplyRequestDto,
+  CoachResultDto,
   CreatePlanRequestDto,
   GetPlanResponseDto,
   NextDayResponseDto,
@@ -19,6 +21,11 @@ export type PlanStatusUpdate = UpdatePlanStatusRequestDto['status'];
 export type SetRecordInput = UpdateSetRequestDto;
 // LLM의 다음 응답 — 질문(asking) 또는 계획 제안(proposing).
 export type PlanProposal = PlanChatResultDto;
+// 운동 중 코치의 응답(message + 변경안|null)과 변경안 타입.
+export type CoachResponse = CoachResultDto;
+export type CoachChange = NonNullable<CoachResultDto['change']>;
+// 적용 가능한 변경안(applying: substitute/adjust_load만). advisory(rest/end_session)는 클라가 처리.
+export type ApplyableChange = CoachApplyRequestDto['change'];
 
 // 계획 생성 대화 입력. 화면이 URL/날짜에서 만든 평문 식별자를 그대로 싣는다(서버가 검증).
 export interface PlanChatInput {
@@ -40,4 +47,15 @@ export interface PlanRepository {
   // 운동 실행(S7) — 상태 전이(시작/종료), 세트 실제값 기록.
   updateStatus: (planId: string, status: PlanStatusUpdate) => Promise<Plan>;
   updateSet: (setId: string, record: SetRecordInput) => Promise<PlannedSet>;
+  // 운동 중 코치(S8) — 묻기(SSE, message 토큰을 onDelta로 흘림)와 변경안 적용(영속).
+  coach: (
+    planId: string,
+    history: ChatMessage[],
+    onDelta?: (text: string) => void,
+  ) => Promise<CoachResponse>;
+  applyCoach: (
+    planId: string,
+    change: ApplyableChange,
+    idempotencyKey: string,
+  ) => Promise<Plan>;
 }

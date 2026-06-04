@@ -136,4 +136,29 @@ describe('PlanRepository', () => {
 
     await expect(result).rejects.toMatchObject({ code: 'INVALID_STATE_TRANSITION', status: 409 });
   });
+
+  it('coach는 result 이벤트의 CoachResponse를 돌려준다', async () => {
+    const http = createFakeHttpClient();
+    http.stubStream('POST', '/api/plans/p1/coach', {
+      deltas: ['풀업으로 ', '바꿔요'],
+      outcome: { status: 200, event: 'result', data: { message: '풀업으로 바꿔요', change: null } },
+    });
+
+    const result = await createPlanRepository(http).coach('p1', [{ role: 'user', content: '자리 없어요' }]);
+
+    expect(result).toEqual({ message: '풀업으로 바꿔요', change: null });
+  });
+
+  it('applyCoach는 변경안을 보내고 변형된 Plan을 돌려준다', async () => {
+    const http = createFakeHttpClient();
+    http.stub('POST', '/api/plans/p1/coach/apply', { status: 200, body: { ok: true, data: plan } });
+
+    const result = await createPlanRepository(http).applyCoach(
+      'p1',
+      { kind: 'adjust_load', targetExerciseName: '벤치', weightFactor: 0.8, reason: '컨디션' },
+      'idem-1',
+    );
+
+    expect(result).toEqual(plan);
+  });
 });

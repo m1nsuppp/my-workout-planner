@@ -64,6 +64,12 @@ function fakeService(opts: {
     updateSet: async () => {
       throw new Error('unused');
     },
+    coach: async () => {
+      throw new Error('unused');
+    },
+    applyCoach: async () => {
+      throw new Error('unused');
+    },
   };
 }
 

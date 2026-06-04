@@ -1,5 +1,7 @@
 import {
   ApiErrorSchema,
+  CoachApplyResponseDto,
+  CoachResultDto,
   CreatePlanResponseDto,
   GetPlanResponseDto,
   NextDayResponseDto,
@@ -53,6 +55,28 @@ export function createPlanRepository(http: HttpClient): PlanRepository {
       return unwrap(
         UpdateSetResponseDto,
         await http.request({ method: 'PATCH', path: `/api/sets/${setId}`, body: record }),
+      );
+    },
+    async coach(planId, history, onDelta) {
+      // chat과 동일한 SSE 규약 — message 토큰은 onDelta로, result 이벤트의 raw CoachResponse를 돌려준다.
+      const outcome = await http.stream(
+        { method: 'POST', path: `/api/plans/${planId}/coach`, body: { history } },
+        onDelta ?? (() => undefined),
+      );
+      if (outcome.event === 'error') {
+        throw new ApiResponseError(outcome.status, ApiErrorSchema.parse(outcome.data));
+      }
+
+      return CoachResultDto.parse(outcome.data);
+    },
+    async applyCoach(planId, change, idempotencyKey) {
+      return unwrap(
+        CoachApplyResponseDto,
+        await http.request({
+          method: 'POST',
+          path: `/api/plans/${planId}/coach/apply`,
+          body: { change, idempotencyKey },
+        }),
       );
     },
   };

@@ -23,5 +23,11 @@ export function createPlanService(repository: PlanRepository): PlanService {
     async updateSet(setId, record) {
       return await repository.updateSet(setId, record);
     },
+    async coach(planId, history, onDelta) {
+      return await repository.coach(planId, history, onDelta);
+    },
+    async applyCoach(planId, change, idempotencyKey) {
+      return await repository.applyCoach(planId, change, idempotencyKey);
+    },
   };
 }
