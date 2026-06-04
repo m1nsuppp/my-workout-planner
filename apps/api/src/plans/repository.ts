@@ -65,4 +65,7 @@ export interface PlanRepository {
     routineId: string,
     routineDayId: string,
   ) => Promise<OverloadRecord[]>;
+  // 루틴 내 label로 routine_days.id를 찾는다(계획 확정 시 routineDayId FK를 채우는 용도).
+  // 소유 루틴에 그 label이 없으면 null(루틴 수정/삭제로 사라졌을 수 있음 → 호출측이 관대 처리).
+  findDayId: (userId: string, routineId: string, label: string) => Promise<string | null>;
 }

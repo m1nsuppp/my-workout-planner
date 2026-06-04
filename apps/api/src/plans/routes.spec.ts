@@ -22,21 +22,18 @@ interface FakeOpts {
   createError?: Error;
   found?: PlanRecord | null;
 }
-class FakePlanService implements PlanService {
-  constructor(private readonly opts: FakeOpts = {}) {}
-
-  async create(): Promise<PlanRecord> {
-    if (this.opts.createError !== undefined) {
-      throw this.opts.createError;
+const createFakePlanService = (opts: FakeOpts = {}): PlanService => ({
+  create: async () => {
+    if (opts.createError !== undefined) {
+      throw opts.createError;
     }
 
     return sampleRecord;
-  }
-
-  async get(): Promise<PlanRecord | null> {
-    return this.opts.found ?? null;
-  }
-}
+  },
+  get: async () => opts.found ?? null,
+  nextDay: async () => null,
+  overloadFor: async () => [],
+});
 
 // 이 스위트는 plan 라우트만 검증한다. 다른 도메인 deps는 호출되지 않는 더미.
 const dummyAuth = {
@@ -58,7 +55,7 @@ const fakeSessionRepository: SessionRepository = {
 
 const appWith = (opts: FakeOpts = {}) =>
   createApp({
-    planService: () => new FakePlanService(opts),
+    planService: () => createFakePlanService(opts),
     routineService: () => ({
       create: async () => {
         throw new Error('unused');

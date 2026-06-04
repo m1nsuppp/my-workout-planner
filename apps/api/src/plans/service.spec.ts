@@ -3,8 +3,8 @@ import type { NewPlan, PlanRecord, PlanRepository } from './repository';
 import { PlanValidationError, createPlanService } from './service';
 
 // fake 저장소 — 실제 D1 없이 service의 공개 인터페이스(입력 → 출력/throw)만 검증.
-// next-day/과부하는 이 스위트(create/get)에서 안 쓰이는 더미.
-const createFakePlanRepository = (): PlanRepository => {
+// next-day/과부하/findDayId는 기본 더미, overrides로 케이스별 동작을 주입한다.
+const createFakePlanRepository = (overrides: Partial<PlanRepository> = {}): PlanRepository => {
   const store = new Map<string, PlanRecord[]>();
   let seq = 0;
 
@@ -25,6 +25,8 @@ const createFakePlanRepository = (): PlanRepository => {
     findById: async (userId, id) => (store.get(userId) ?? []).find((p) => p.id === id) ?? null,
     nextDay: async () => null,
     lastOverload: async () => [],
+    findDayId: async () => null,
+    ...overrides,
   };
 };
 
@@ -90,6 +92,35 @@ describe('createPlanService.create — 도메인 규칙 위반', () => {
     const created = await service.create('u1', validPlan());
     // 위반 건은 저장 안 됐고, 직후 유효 건만 조회됨
     expect((await service.get('u1', created.id))?.id).toBe(created.id);
+  });
+});
+
+describe('createPlanService.create — routineDayId 채움', () => {
+  it('확정 시 label로 routineDayId를 채워 저장한다', async () => {
+    const repo = createFakePlanRepository({ findDayId: async () => 'day-1' });
+    const created = await createPlanService(repo).create('u1', validPlan());
+    expect(created.routineDayId).toBe('day-1');
+  });
+
+  it('label이 루틴에 없으면 routineDayId 없이 저장한다(관대)', async () => {
+    const repo = createFakePlanRepository({ findDayId: async () => null });
+    const created = await createPlanService(repo).create('u1', validPlan());
+    expect(created.routineDayId).toBeNull();
+  });
+});
+
+describe('createPlanService.overloadFor', () => {
+  it('label이 실재하면 그 Day의 과부하 기록을 준다', async () => {
+    const repo = createFakePlanRepository({
+      findDayId: async () => 'day-1',
+      lastOverload: async () => [{ exerciseName: '벤치', sets: [] }],
+    });
+    expect(await createPlanService(repo).overloadFor('u1', 'r1', '상체')).toHaveLength(1);
+  });
+
+  it('label이 없으면 빈 배열(과부하 근거 없음)', async () => {
+    const repo = createFakePlanRepository({ findDayId: async () => null });
+    expect(await createPlanService(repo).overloadFor('u1', 'r1', '없는Day')).toEqual([]);
   });
 });
 

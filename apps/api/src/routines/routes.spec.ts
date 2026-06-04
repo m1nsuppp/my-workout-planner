@@ -84,6 +84,8 @@ const appWith = (opts: FakeOpts = {}) =>
         throw new Error('unused');
       },
       get: async () => null,
+      nextDay: async () => null,
+      overloadFor: async () => [],
     }),
     routineChatService: () => ({
       reply: async () => {

@@ -38,6 +38,8 @@ const makeApp = (authService: AuthService) =>
         throw new Error('unused');
       },
       get: async () => null,
+      nextDay: async () => null,
+      overloadFor: async () => [],
     }),
     sessionRepository: () => ({
       create: async (s) => ({ id: '', ...s, createdAt: '' }),

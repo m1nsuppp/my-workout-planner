@@ -121,6 +121,22 @@ export function createD1PlanRepository(d1: D1Database): PlanRepository {
         ),
       }));
     },
+    findDayId: async (userId, routineId, label) => {
+      const row = await db
+        .select({ id: routineDays.id })
+        .from(routineDays)
+        .innerJoin(routines, eq(routineDays.routineId, routines.id))
+        .where(
+          and(
+            eq(routineDays.routineId, routineId),
+            eq(routines.userId, userId),
+            eq(routineDays.label, label),
+          ),
+        )
+        .get();
+
+      return row?.id ?? null;
+    },
   };
 }
 

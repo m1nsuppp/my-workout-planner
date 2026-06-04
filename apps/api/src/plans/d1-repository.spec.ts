@@ -273,3 +273,21 @@ describe('createD1PlanRepository.lastOverload', () => {
     expect(await repo.lastOverload('ov3', 'r-none', 'd-none')).toEqual([]);
   });
 });
+
+describe('createD1PlanRepository.findDayId', () => {
+  it('루틴 내 label로 routine_days.id를 찾는다', async () => {
+    const repo = createD1PlanRepository(env.DB);
+    const routineId = await makeRoutine('fd1');
+    const first = expectDay(await repo.nextDay('fd1', routineId));
+
+    expect(await repo.findDayId('fd1', routineId, '상체')).toBe(first.routineDayId);
+  });
+
+  it('없는 label·타 유저 루틴은 null (소유권 격리)', async () => {
+    const repo = createD1PlanRepository(env.DB);
+    const routineId = await makeRoutine('fd2');
+
+    expect(await repo.findDayId('fd2', routineId, '없는Day')).toBeNull();
+    expect(await repo.findDayId('intruder', routineId, '상체')).toBeNull();
+  });
+});
