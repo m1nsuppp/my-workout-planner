@@ -3,9 +3,11 @@ import type {
   NewPlanExercise,
   NewPlannedSet,
   OverloadRecord,
+  PlanDateRange,
   PlanExerciseRecord,
   PlanRecord,
   PlanRepository,
+  PlanSummaryRecord,
   RoutineDayRef,
   SetRecordInput,
 } from './repository';
@@ -72,6 +74,7 @@ const ALLOWED_TRANSITIONS: Record<string, readonly string[]> = {
 export interface PlanService {
   create: (userId: string, input: NewPlan) => Promise<PlanRecord>;
   get: (userId: string, id: string) => Promise<PlanRecord | null>;
+  list: (userId: string, range?: PlanDateRange) => Promise<PlanSummaryRecord[]>;
   nextDay: (userId: string, routineId: string) => Promise<RoutineDayRef | null>;
   // 대상 Day(label)의 과부하 근거 조립. label이 루틴에 없으면 빈 배열.
   overloadFor: (
@@ -114,6 +117,7 @@ export function createPlanService(repo: PlanRepository): PlanService {
       return await repo.create(userId, { ...input, routineDayId });
     },
     get: async (userId, id) => await repo.findById(userId, id),
+    list: async (userId, range) => await repo.listSummaries(userId, range),
     nextDay: async (userId, routineId) => await repo.nextDay(userId, routineId),
     overloadFor: async (userId, routineId, routineDayLabel) => {
       const dayId = await repo.findDayId(userId, routineId, routineDayLabel);

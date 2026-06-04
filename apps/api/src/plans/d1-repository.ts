@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, lte } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { drizzle, type DrizzleD1Database } from 'drizzle-orm/d1';
 import { chunkedInserts } from '../db/chunked-insert';
@@ -30,6 +30,44 @@ export function createD1PlanRepository(d1: D1Database): PlanRepository {
         .get();
 
       return row === undefined ? null : await hydrate(db, row);
+    },
+    listSummaries: async (userId, range) => {
+      const filters = [eq(plans.userId, userId)];
+      if (range?.from !== undefined) {
+        filters.push(gte(plans.date, range.from));
+      }
+      if (range?.to !== undefined) {
+        filters.push(lte(plans.date, range.to));
+      }
+
+      const rows = await db
+        .select({
+          id: plans.id,
+          date: plans.date,
+          status: plans.status,
+          routineDayLabel: plans.routineDayLabel,
+        })
+        .from(plans)
+        .where(and(...filters))
+        .orderBy(asc(plans.date));
+      if (rows.length === 0) {
+        return [];
+      }
+
+      // 운동 개수는 plan_exercises를 plan별로 집계(N+1 회피). 운동 없는 계획은 0.
+      const counts = await db
+        .select({ planId: planExercises.planId, n: count() })
+        .from(planExercises)
+        .where(
+          inArray(
+            planExercises.planId,
+            rows.map((r) => r.id),
+          ),
+        )
+        .groupBy(planExercises.planId);
+      const countByPlan = new Map(counts.map((c) => [c.planId, c.n]));
+
+      return rows.map((r) => ({ ...r, exerciseCount: countByPlan.get(r.id) ?? 0 }));
     },
     nextDay: async (userId, routineId) => {
       // routine_days엔 userId가 없으므로 routines와 join해 소유권을 격리한다(타 유저 루틴이면 빈 배열).

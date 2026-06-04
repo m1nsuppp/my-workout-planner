@@ -6,6 +6,7 @@ import {
   CreatePlanRequestDto,
   CreatePlanResponseDto,
   GetPlanResponseDto,
+  ListPlansResponseDto,
   NextDayResponseDto,
   PlanChatRequestDto,
   UpdatePlanStatusRequestDto,
@@ -69,6 +70,20 @@ export function registerPlanRoutes(app: Hono<{ Bindings: Env }>, deps: PlanDeps)
 
       throw e;
     }
+  });
+
+  // 기간 내 계획 요약 목록(홈·캘린더). from/to는 ISODate, 둘 다 선택 — 없으면 전체.
+  app.get('/api/plans', async (c) => {
+    const userId = await authenticate(c);
+    if (userId === null) {
+      return c.json(failBody('UNAUTHENTICATED', '로그인이 필요합니다.'), Status.UNAUTHENTICATED);
+    }
+
+    const summaries = await deps
+      .planService(c.env)
+      .list(userId, { from: c.req.query('from'), to: c.req.query('to') });
+
+    return c.json(okBody(ListPlansResponseDto, summaries), Status.OK);
   });
 
   app.get('/api/plans/:id', async (c) => {

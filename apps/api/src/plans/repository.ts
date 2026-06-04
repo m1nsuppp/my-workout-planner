@@ -54,6 +54,21 @@ export interface PlanRecord {
   exercises: PlanExerciseRecord[];
 }
 
+// 목록/캘린더용 경량 요약 — 상세(exercises)는 빼고 운동 개수만 센다.
+export interface PlanSummaryRecord {
+  id: string;
+  date: string;
+  status: string;
+  routineDayLabel: string;
+  exerciseCount: number;
+}
+
+// 목록 조회 기간(둘 다 ISODate, 둘 다 선택). 없으면 전체.
+export interface PlanDateRange {
+  from?: string;
+  to?: string;
+}
+
 // 루틴의 한 "Day" 참조. next-day 계산 결과 — 어느 Day를 이번에 소화할지.
 export interface RoutineDayRef {
   routineDayId: string;
@@ -70,6 +85,8 @@ export interface OverloadRecord {
 export interface PlanRepository {
   create: (userId: string, plan: NewPlan) => Promise<PlanRecord>;
   findById: (userId: string, id: string) => Promise<PlanRecord | null>;
+  // 기간 내 계획 요약 목록(날짜 오름차순). range가 없으면 전체. 홈·캘린더용.
+  listSummaries: (userId: string, range?: PlanDateRange) => Promise<PlanSummaryRecord[]>;
   // 이 루틴에서 다음에 소화할 Day(마지막 완료 Day의 다음, 한 바퀴 돌면 처음으로).
   // 완료 이력이 없으면 첫 Day. 루틴에 Day가 없으면 null.
   // routine_days(루틴 소유 테이블)를 읽기 전용으로 조회한다 — 다음 차례 계산은 plan 생성의 본질적 일부.

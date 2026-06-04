@@ -144,6 +144,49 @@ describe('createD1PlanRepository (실제 D1)', () => {
       await repo.applyCoachChange('u1', 'nope', { exercises: [], idempotencyKey: 'k', appliedAt: 't' }),
     ).toBeNull();
   });
+
+  // 목록은 다른 테스트의 'u1'과 안 섞이게 고유 userId를 쓴다(D1 storage 공유 대비).
+  const planOn = (date: string, label: string, exerciseCount: number): NewPlan => ({
+    routineId: 'r1',
+    routineDayLabel: label,
+    date,
+    exercises: Array.from({ length: exerciseCount }, (_, i) => ({
+      name: `운동 ${i}`,
+      muscleGroups: ['chest'],
+      sets: [{ targetWeightKg: 50, targetReps: 8 }],
+    })),
+  });
+
+  it('listSummaries는 날짜 오름차순 요약 + 운동 개수를 준다', async () => {
+    const repo = createD1PlanRepository(env.DB);
+    await repo.create('list-user', planOn('2026-07-20', '상체', 2));
+    await repo.create('list-user', planOn('2026-07-10', '하체', 1));
+
+    const list = await repo.listSummaries('list-user');
+
+    expect(list.map((s) => s.date)).toEqual(['2026-07-10', '2026-07-20']);
+    expect(list[0].exerciseCount).toBe(1);
+    expect(list[1].exerciseCount).toBe(2);
+    expect(list[0].routineDayLabel).toBe('하체');
+  });
+
+  it('listSummaries는 from/to 기간으로 필터한다', async () => {
+    const repo = createD1PlanRepository(env.DB);
+    await repo.create('range-user', planOn('2026-08-01', 'A', 1));
+    await repo.create('range-user', planOn('2026-08-15', 'B', 1));
+    await repo.create('range-user', planOn('2026-08-30', 'C', 1));
+
+    const list = await repo.listSummaries('range-user', { from: '2026-08-10', to: '2026-08-20' });
+
+    expect(list.map((s) => s.date)).toEqual(['2026-08-15']);
+  });
+
+  it('listSummaries는 타 유저 계획을 제외한다', async () => {
+    const repo = createD1PlanRepository(env.DB);
+    await repo.create('owner-2', planOn('2026-09-01', 'A', 1));
+
+    expect(await repo.listSummaries('intruder-2')).toEqual([]);
+  });
 });
 
 // 2-Day 루틴을 만들고 그 id를 돌려준다(next-day/과부하 테스트의 토대).

@@ -106,6 +106,7 @@ const appWith = (opts: FakeOpts = {}) =>
         throw new Error('unused');
       },
       get: async () => null,
+      list: async () => [],
       nextDay: async () => null,
       overloadFor: async () => [],
       updateStatus: async () => null,

@@ -38,6 +38,7 @@ const makeApp = (authService: AuthService) =>
         throw new Error('unused');
       },
       get: async () => null,
+      list: async () => [],
       nextDay: async () => null,
       overloadFor: async () => [],
       updateStatus: async () => null,

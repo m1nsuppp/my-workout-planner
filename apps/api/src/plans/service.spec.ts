@@ -39,6 +39,14 @@ const createFakePlanRepository = (overrides: Partial<PlanRepository> = {}): Plan
       return record;
     },
     findById: async (userId, id) => (store.get(userId) ?? []).find((p) => p.id === id) ?? null,
+    listSummaries: async (userId) =>
+      (store.get(userId) ?? []).map((p) => ({
+        id: p.id,
+        date: p.date,
+        status: p.status,
+        routineDayLabel: p.routineDayLabel,
+        exerciseCount: p.exercises.length,
+      })),
     nextDay: async () => null,
     lastOverload: async () => [],
     findDayId: async () => null,

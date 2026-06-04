@@ -2,6 +2,7 @@ import {
   ApiFailureSchema,
   CreatePlanResponseDto,
   GetPlanResponseDto,
+  ListPlansResponseDto,
   NextDayResponseDto,
   PlanChatResultDto,
   UpdateSetResponseDto,
@@ -67,6 +68,28 @@ describe('POST /api/plans', () => {
 
   it('세션 쿠키 없음 → 401', async () => {
     const res = await postPlan({}, validBody, false);
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('GET /api/plans', () => {
+  it('요약 목록 → 200 + 배열', async () => {
+    const res = await appWith({
+      summaries: [
+        { id: 'p1', date: '2026-05-25', status: 'scheduled', routineDayLabel: '상체 A', exerciseCount: 3 },
+      ],
+    }).request('/api/plans', { headers: authed }, devEnv);
+
+    expect(res.status).toBe(200);
+    const json = ListPlansResponseDto.parse(await res.json());
+    if (json.ok) {
+      expect(json.data).toHaveLength(1);
+      expect(json.data[0].exerciseCount).toBe(3);
+    }
+  });
+
+  it('인증 없음 → 401', async () => {
+    const res = await appWith().request('/api/plans', undefined, devEnv);
     expect(res.status).toBe(401);
   });
 });

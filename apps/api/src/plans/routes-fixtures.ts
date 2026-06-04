@@ -1,7 +1,7 @@
 import type { CoachResultDto, PlanChatResultDto } from '@workout/contracts';
 import { createApp } from '../app';
 import type { SessionRepository } from '../auth/session-repository';
-import type { PlannedSetRecord, PlanRecord, RoutineDayRef } from './repository';
+import type { PlannedSetRecord, PlanRecord, PlanSummaryRecord, RoutineDayRef } from './repository';
 import type { PlanService } from './service';
 
 // plan/coach 라우트 스위트가 공유하는 테스트 픽스처(컨트롤러 HTTP 행동만 검증하기 위한 fake 조립).
@@ -57,6 +57,7 @@ export interface FakeOpts {
   coachApplied?: PlanRecord | null;
   coachError?: Error;
   coachReply?: CoachResultDto;
+  summaries?: PlanSummaryRecord[];
 }
 
 const createFakePlanService = (opts: FakeOpts = {}): PlanService => ({
@@ -68,6 +69,7 @@ const createFakePlanService = (opts: FakeOpts = {}): PlanService => ({
     return sampleRecord;
   },
   get: async () => opts.found ?? null,
+  list: async () => opts.summaries ?? [],
   nextDay: async () => opts.nextDay ?? null,
   overloadFor: async () => [],
   updateStatus: async () => {
