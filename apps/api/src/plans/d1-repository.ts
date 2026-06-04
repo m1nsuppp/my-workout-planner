@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { drizzle, type DrizzleD1Database } from 'drizzle-orm/d1';
+import { chunkedInserts } from '../db/chunked-insert';
 import {
   coachApplications,
   planExerciseMuscles,
@@ -266,15 +267,10 @@ async function replaceExercises(
     );
   }
   rest.push(db.delete(planExercises).where(eq(planExercises.planId, planId)));
-  if (exerciseValues.length > 0) {
-    rest.push(db.insert(planExercises).values(exerciseValues));
-  }
-  if (muscleValues.length > 0) {
-    rest.push(db.insert(planExerciseMuscles).values(muscleValues));
-  }
-  if (setValues.length > 0) {
-    rest.push(db.insert(plannedSets).values(setValues));
-  }
+  // D1 변수 한도(100/쿼리)를 넘지 않도록 큰 INSERT는 청크로 쪼갠다.
+  rest.push(...chunkedInserts(exerciseValues, (c) => db.insert(planExercises).values(c)));
+  rest.push(...chunkedInserts(muscleValues, (c) => db.insert(planExerciseMuscles).values(c)));
+  rest.push(...chunkedInserts(setValues, (c) => db.insert(plannedSets).values(c)));
 
   await db.batch([head, ...rest]);
 }
@@ -323,16 +319,12 @@ async function insert(db: Db, userId: string, plan: NewPlan): Promise<PlanRecord
     overloadNote: plan.overloadNote,
     createdAt,
   });
-  const rest: Array<BatchItem<'sqlite'>> = [];
-  if (exerciseValues.length > 0) {
-    rest.push(db.insert(planExercises).values(exerciseValues));
-  }
-  if (muscleValues.length > 0) {
-    rest.push(db.insert(planExerciseMuscles).values(muscleValues));
-  }
-  if (setValues.length > 0) {
-    rest.push(db.insert(plannedSets).values(setValues));
-  }
+  // D1 변수 한도(100/쿼리)를 넘지 않도록 큰 INSERT는 청크로 쪼갠다.
+  const rest: Array<BatchItem<'sqlite'>> = [
+    ...chunkedInserts(exerciseValues, (c) => db.insert(planExercises).values(c)),
+    ...chunkedInserts(muscleValues, (c) => db.insert(planExerciseMuscles).values(c)),
+    ...chunkedInserts(setValues, (c) => db.insert(plannedSets).values(c)),
+  ];
 
   await db.batch([head, ...rest]);
 

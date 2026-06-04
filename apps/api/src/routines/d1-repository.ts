@@ -1,6 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { drizzle, type DrizzleD1Database } from 'drizzle-orm/d1';
+import { chunkedInserts } from '../db/chunked-insert';
 import { routineDays, routineExerciseMuscles, routineExercises, routines } from '../db/schema';
 import type { NewRoutine, RoutineRecord, RoutineRepository } from './repository';
 
@@ -74,16 +75,12 @@ async function insert(db: Db, userId: string, routine: NewRoutine): Promise<Rout
     daysPerWeek: routine.daysPerWeek,
     createdAt,
   });
-  const rest: Array<BatchItem<'sqlite'>> = [];
-  if (dayValues.length > 0) {
-    rest.push(db.insert(routineDays).values(dayValues));
-  }
-  if (exerciseValues.length > 0) {
-    rest.push(db.insert(routineExercises).values(exerciseValues));
-  }
-  if (muscleValues.length > 0) {
-    rest.push(db.insert(routineExerciseMuscles).values(muscleValues));
-  }
+  // D1 변수 한도(100/쿼리)를 넘지 않도록 큰 INSERT는 청크로 쪼갠다(운동 많은 루틴 대비).
+  const rest: Array<BatchItem<'sqlite'>> = [
+    ...chunkedInserts(dayValues, (c) => db.insert(routineDays).values(c)),
+    ...chunkedInserts(exerciseValues, (c) => db.insert(routineExercises).values(c)),
+    ...chunkedInserts(muscleValues, (c) => db.insert(routineExerciseMuscles).values(c)),
+  ];
 
   await db.batch([head, ...rest]);
 

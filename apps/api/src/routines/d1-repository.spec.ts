@@ -112,4 +112,34 @@ describe('createD1RoutineRepository (실제 D1)', () => {
 
     expect(found?.days).toEqual([]);
   });
+
+  // 운동·근육군이 많으면 한 INSERT의 바인딩 변수가 D1 한도(100)를 넘는다 → 청크 분할이 필요.
+  it('운동이 많은 루틴도 저장된다 (D1 변수 한도 청크 분할)', async () => {
+    const repo = createD1RoutineRepository(env.DB);
+    const exercises = Array.from({ length: 8 }, (_, i) => ({
+      name: `운동 ${i}`,
+      muscleGroups: ['chest', 'triceps'] as string[],
+      targetSets: 3,
+      targetRepRange: [8, 12] as [number, number],
+    }));
+    const big: NewRoutine = {
+      name: '대형 전신',
+      goal: 'hypertrophy',
+      splitType: 'full_body',
+      daysPerWeek: 3,
+      // 24운동(8×3) × 7컬럼 = 168 변수 — 한 INSERT면 한도 초과, 청크로 나뉘어야 통과.
+      days: [
+        { label: '전신 A', exercises },
+        { label: '전신 B', exercises },
+        { label: '전신 C', exercises },
+      ],
+    };
+
+    const created = await repo.create('u1', big);
+    const found = await repo.findById('u1', created.id);
+
+    expect(found?.days).toHaveLength(3);
+    expect(found?.days[0].exercises).toHaveLength(8);
+    expect(found?.days[2].exercises[7].name).toBe('운동 7');
+  });
 });
