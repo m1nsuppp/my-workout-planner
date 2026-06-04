@@ -7,8 +7,11 @@ import { createAuthRepository } from '../auth/create-repository';
 import { createAuthService } from '../auth/create-service';
 import { createRoutineRepository } from '../routines/create-repository';
 import { createRoutineService } from '../routines/create-service';
+import { createPlanRepository } from '../plans/create-repository';
+import { createPlanService } from '../plans/create-service';
 import { AuthServiceProvider } from './contexts/auth-service-context';
 import { RoutineServiceProvider } from './contexts/routine-service-context';
+import { PlanServiceProvider } from './contexts/plan-service-context';
 import { routeTree } from './route-tree.gen';
 
 // 프로덕션 조립부 — http → repository → service로 엮어 주입한다(테스트는 fake로 대체).
@@ -17,6 +20,7 @@ import { routeTree } from './route-tree.gen';
 // baseUrl은 dev 프록시에선 빈 문자열, 서브도메인 분리 시 VITE_API_BASE_URL로 지정.
 const httpClient = createFetchHttpClient({ baseUrl: import.meta.env.VITE_API_BASE_URL ?? '' });
 const routineService = createRoutineService(createRoutineRepository(httpClient));
+const planService = createPlanService(createPlanRepository(httpClient));
 const authService = createAuthService(createAuthRepository(httpClient));
 
 // authService를 router context에 주입 — 보호 라우트의 beforeLoad 가드가 me()를 쓴다.
@@ -38,7 +42,9 @@ createRoot(rootElement).render(
   <StrictMode>
     <AuthServiceProvider service={authService}>
       <RoutineServiceProvider service={routineService}>
-        <RouterProvider router={router} />
+        <PlanServiceProvider service={planService}>
+          <RouterProvider router={router} />
+        </PlanServiceProvider>
       </RoutineServiceProvider>
     </AuthServiceProvider>
   </StrictMode>,

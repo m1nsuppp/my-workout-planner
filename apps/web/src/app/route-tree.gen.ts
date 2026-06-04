@@ -13,6 +13,7 @@ import { Route as RoutinesRouteImport } from './routes/routines'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RoutinesNewRouteImport } from './routes/routines_.new'
 import { Route as RoutinesIdRouteImport } from './routes/routines_.$id'
+import { Route as PlansNewRouteImport } from './routes/plans_.new'
 
 const RoutinesRoute = RoutinesRouteImport.update({
   id: '/routines',
@@ -34,16 +35,23 @@ const RoutinesIdRoute = RoutinesIdRouteImport.update({
   path: '/routines/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlansNewRoute = PlansNewRouteImport.update({
+  id: '/plans_/new',
+  path: '/plans/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/routines': typeof RoutinesRoute
+  '/plans/new': typeof PlansNewRoute
   '/routines/$id': typeof RoutinesIdRoute
   '/routines/new': typeof RoutinesNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/routines': typeof RoutinesRoute
+  '/plans/new': typeof PlansNewRoute
   '/routines/$id': typeof RoutinesIdRoute
   '/routines/new': typeof RoutinesNewRoute
 }
@@ -51,20 +59,33 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/routines': typeof RoutinesRoute
+  '/plans_/new': typeof PlansNewRoute
   '/routines_/$id': typeof RoutinesIdRoute
   '/routines_/new': typeof RoutinesNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/routines' | '/routines/$id' | '/routines/new'
+  fullPaths:
+    | '/'
+    | '/routines'
+    | '/plans/new'
+    | '/routines/$id'
+    | '/routines/new'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/routines' | '/routines/$id' | '/routines/new'
-  id: '__root__' | '/' | '/routines' | '/routines_/$id' | '/routines_/new'
+  to: '/' | '/routines' | '/plans/new' | '/routines/$id' | '/routines/new'
+  id:
+    | '__root__'
+    | '/'
+    | '/routines'
+    | '/plans_/new'
+    | '/routines_/$id'
+    | '/routines_/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   RoutinesRoute: typeof RoutinesRoute
+  PlansNewRoute: typeof PlansNewRoute
   RoutinesIdRoute: typeof RoutinesIdRoute
   RoutinesNewRoute: typeof RoutinesNewRoute
 }
@@ -99,12 +120,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RoutinesIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/plans_/new': {
+      id: '/plans_/new'
+      path: '/plans/new'
+      fullPath: '/plans/new'
+      preLoaderRoute: typeof PlansNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   RoutinesRoute: RoutinesRoute,
+  PlansNewRoute: PlansNewRoute,
   RoutinesIdRoute: RoutinesIdRoute,
   RoutinesNewRoute: RoutinesNewRoute,
 }

@@ -47,6 +47,14 @@ function RoutineDetail({ routine }: { routine: Routine }): JSX.Element {
         </p>
       </div>
 
+      <Link
+        to="/plans/new"
+        search={{ routineId: routine.id }}
+        className="rounded-lg bg-neutral-900 px-4 py-2 text-center font-medium text-white"
+      >
+        이 루틴으로 계획 만들기
+      </Link>
+
       <ul className="flex flex-col gap-4">
         {routine.days.map((day, i) => (
           <li
