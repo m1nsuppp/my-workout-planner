@@ -33,6 +33,12 @@ const makeApp = (authService: AuthService) =>
         throw new Error('unused');
       },
     }),
+    planService: () => ({
+      create: async () => {
+        throw new Error('unused');
+      },
+      get: async () => null,
+    }),
     sessionRepository: () => ({
       create: async (s) => ({ id: '', ...s, createdAt: '' }),
       findValid: async () => null,

@@ -26,6 +26,12 @@ const dummySession: SessionRepository = {
 
 const deps: AppDeps = {
   routineService: () => dummyRoutine,
+  planService: () => ({
+    create: async () => {
+      throw new Error('unused');
+    },
+    get: async () => null,
+  }),
   routineChatService: () => ({
     reply: async () => {
       throw new Error('unused');

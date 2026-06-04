@@ -79,6 +79,12 @@ const fakeSessionRepository: SessionRepository = {
 const appWith = (opts: FakeOpts = {}) =>
   createApp({
     routineService: () => new FakeRoutineService(opts),
+    planService: () => ({
+      create: async () => {
+        throw new Error('unused');
+      },
+      get: async () => null,
+    }),
     routineChatService: () => ({
       reply: async () => {
         if (opts.chatError !== undefined) {

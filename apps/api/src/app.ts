@@ -4,8 +4,9 @@ import { z } from 'zod';
 import type { Env } from './env';
 import { registerAuthRoutes, type AuthDeps } from './auth/routes';
 import { registerRoutineRoutes, type RoutineDeps } from './routines/routes';
+import { registerPlanRoutes, type PlanDeps } from './plans/routes';
 
-export type AppDeps = RoutineDeps & AuthDeps;
+export type AppDeps = RoutineDeps & AuthDeps & PlanDeps;
 
 // cors origin 콜백의 c는 제네릭 없는 Context라 c.env가 any다 — APP_ORIGIN만 zod로 뽑아낸다.
 const CorsEnv = z.object({ APP_ORIGIN: z.string() });
@@ -27,5 +28,6 @@ export function createApp(deps: AppDeps): Hono<{ Bindings: Env }> {
   app.get('/api/hello', (c) => c.json({ message: 'hello' }));
   registerAuthRoutes(app, deps);
   registerRoutineRoutes(app, deps);
+  registerPlanRoutes(app, deps);
   return app;
 }
