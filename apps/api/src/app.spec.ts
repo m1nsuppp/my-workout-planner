@@ -34,6 +34,11 @@ const deps: AppDeps = {
     nextDay: async () => null,
     overloadFor: async () => [],
   }),
+  planChatService: () => ({
+    reply: async () => {
+      throw new Error('unused');
+    },
+  }),
   routineChatService: () => ({
     reply: async () => {
       throw new Error('unused');

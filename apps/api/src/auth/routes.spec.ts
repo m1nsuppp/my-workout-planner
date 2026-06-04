@@ -41,6 +41,11 @@ const makeApp = (authService: AuthService) =>
       nextDay: async () => null,
       overloadFor: async () => [],
     }),
+    planChatService: () => ({
+      reply: async () => {
+        throw new Error('unused');
+      },
+    }),
     sessionRepository: () => ({
       create: async (s) => ({ id: '', ...s, createdAt: '' }),
       findValid: async () => null,

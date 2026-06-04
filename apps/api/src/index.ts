@@ -8,6 +8,7 @@ import { createRoutineService } from './routines/service';
 import { createRoutineChatService } from './routines/chat-service';
 import { createD1PlanRepository } from './plans/d1-repository';
 import { createPlanService } from './plans/service';
+import { createPlanChatService } from './plans/chat-service';
 import { createOpenRouterClient } from './llm/openrouter-client';
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30일
@@ -16,6 +17,10 @@ const now = (): Date => new Date();
 const app = createApp({
   routineService: (env) => createRoutineService(createD1RoutineRepository(env.DB)),
   planService: (env) => createPlanService(createD1PlanRepository(env.DB)),
+  planChatService: (env) =>
+    createPlanChatService(
+      createOpenRouterClient({ apiKey: env.OPENROUTER_API_KEY, model: env.LLM_MODEL }),
+    ),
   routineChatService: (env) =>
     createRoutineChatService(
       createOpenRouterClient({ apiKey: env.OPENROUTER_API_KEY, model: env.LLM_MODEL }),

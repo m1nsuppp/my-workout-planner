@@ -1,8 +1,15 @@
-import { CreatePlanResponseDto, GetPlanResponseDto } from '@workout/contracts';
+import {
+  ApiFailureSchema,
+  CreatePlanResponseDto,
+  GetPlanResponseDto,
+  NextDayResponseDto,
+  PlanChatResultDto,
+} from '@workout/contracts';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../app';
 import type { SessionRepository } from '../auth/session-repository';
-import type { PlanRecord } from './repository';
+import { LlmError } from '../llm/client';
+import type { PlanRecord, RoutineDayRef } from './repository';
 import { PlanValidationError, type PlanService } from './service';
 
 const sampleRecord: PlanRecord = {
@@ -21,6 +28,9 @@ const sampleRecord: PlanRecord = {
 interface FakeOpts {
   createError?: Error;
   found?: PlanRecord | null;
+  nextDay?: RoutineDayRef | null;
+  chatReply?: PlanChatResultDto;
+  chatError?: Error;
 }
 const createFakePlanService = (opts: FakeOpts = {}): PlanService => ({
   create: async () => {
@@ -31,7 +41,7 @@ const createFakePlanService = (opts: FakeOpts = {}): PlanService => ({
     return sampleRecord;
   },
   get: async () => opts.found ?? null,
-  nextDay: async () => null,
+  nextDay: async () => opts.nextDay ?? null,
   overloadFor: async () => [],
 });
 
@@ -56,6 +66,15 @@ const fakeSessionRepository: SessionRepository = {
 const appWith = (opts: FakeOpts = {}) =>
   createApp({
     planService: () => createFakePlanService(opts),
+    planChatService: () => ({
+      reply: async () => {
+        if (opts.chatError !== undefined) {
+          throw opts.chatError;
+        }
+
+        return opts.chatReply ?? { phase: 'asking', message: '오늘 컨디션 어때요?' };
+      },
+    }),
     routineService: () => ({
       create: async () => {
         throw new Error('unused');
@@ -164,6 +183,98 @@ describe('GET /api/plans/:id', () => {
 
   it('인증 없음 → 401', async () => {
     const res = await appWith().request('/api/plans/p1', undefined, devEnv);
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('GET /api/routines/:id/next-day', () => {
+  it('다음 차례 Day → 200 + {routineDayId, label}', async () => {
+    const next: RoutineDayRef = { routineDayId: 'd2', label: '하체', orderIndex: 1 };
+    const res = await appWith({ nextDay: next }).request(
+      '/api/routines/r1/next-day',
+      { headers: authed },
+      devEnv,
+    );
+    expect(res.status).toBe(200);
+    const json = NextDayResponseDto.parse(await res.json());
+    if (json.ok) {
+      expect(json.data).toEqual({ routineDayId: 'd2', label: '하체' });
+    }
+  });
+
+  it('Day 없는(또는 없는) 루틴 → 404 NOT_FOUND', async () => {
+    const res = await appWith({ nextDay: null }).request(
+      '/api/routines/nope/next-day',
+      { headers: authed },
+      devEnv,
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('인증 없음 → 401', async () => {
+    const res = await appWith().request('/api/routines/r1/next-day', undefined, devEnv);
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('POST /api/plans/chat', () => {
+  const postChat = async (opts: FakeOpts, body: unknown, authenticated = true) =>
+    await appWith(opts).request(
+      '/api/plans/chat',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...(authenticated ? authed : {}) },
+        body: JSON.stringify(body),
+      },
+      devEnv,
+    );
+
+  const chatBody = {
+    routineId: 'r1',
+    routineDayLabel: '상체 A',
+    date: '2026-05-25',
+    history: [{ role: 'user', content: '오늘 계획 짜줘' }],
+  };
+
+  it('asking 응답 → 200 + 봉투 없는 raw proposal', async () => {
+    const res = await postChat({ chatReply: { phase: 'asking', message: '컨디션 어때요?' } }, chatBody);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ phase: 'asking', message: '컨디션 어때요?' });
+  });
+
+  it('proposing 응답 → 200 + planDraft 포함', async () => {
+    // routineId·date는 brand 타입이라 리터럴 대입이 안 됨 — 계약 스키마로 parse해 생성한다.
+    const proposal = PlanChatResultDto.parse({
+      phase: 'proposing',
+      message: '이 계획 어때요?',
+      planDraft: {
+        routineId: 'r1',
+        routineDayLabel: '상체 A',
+        date: '2026-05-25',
+        exercises: [
+          { name: '벤치', muscleGroups: ['chest'], sets: [{ targetWeightKg: 50, targetReps: 8 }] },
+        ],
+      },
+    });
+    const res = await postChat({ chatReply: proposal }, chatBody);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(proposal);
+  });
+
+  it('LLM 실패 → 502 LLM_FAILED', async () => {
+    const res = await postChat({ chatError: new LlmError('boom') }, chatBody);
+    expect(res.status).toBe(502);
+    const json = ApiFailureSchema.parse(await res.json());
+    expect(json.error.code).toBe('LLM_FAILED');
+  });
+
+  it('필드 누락 → 422 VALIDATION_FAILED', async () => {
+    const res = await postChat({}, { history: [] });
+    expect(res.status).toBe(422);
+  });
+
+  it('인증 없음 → 401', async () => {
+    const res = await postChat({}, chatBody, false);
     expect(res.status).toBe(401);
   });
 });

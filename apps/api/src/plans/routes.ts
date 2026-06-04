@@ -1,14 +1,23 @@
 import type { Context, Hono } from 'hono';
-import { CreatePlanRequestDto, CreatePlanResponseDto, GetPlanResponseDto } from '@workout/contracts';
+import {
+  CreatePlanRequestDto,
+  CreatePlanResponseDto,
+  GetPlanResponseDto,
+  NextDayResponseDto,
+  PlanChatRequestDto,
+} from '@workout/contracts';
 import type { Env } from '../env';
 import { getUserId } from '../auth';
 import type { SessionRepository } from '../auth/session-repository';
+import { LlmError } from '../llm/client';
 import { Status, failBody, okBody } from '../response';
+import type { PlanChatService } from './chat-service';
 import type { NewPlan } from './repository';
 import { PlanValidationError, type PlanService } from './service';
 
 export interface PlanDeps {
   planService: (env: Env) => PlanService;
+  planChatService: (env: Env) => PlanChatService;
   sessionRepository: (env: Env) => SessionRepository;
   now: () => Date;
 }
@@ -59,6 +68,59 @@ export function registerPlanRoutes(app: Hono<{ Bindings: Env }>, deps: PlanDeps)
     }
 
     return c.json(okBody(GetPlanResponseDto, record), Status.OK);
+  });
+
+  // 다음 차례 Day 자동 제시 — 화면이 계획 생성 진입 시 기본 Day로 채운다(사용자가 바꿀 수 있음).
+  app.get('/api/routines/:id/next-day', async (c) => {
+    const userId = await authenticate(c);
+    if (userId === null) {
+      return c.json(failBody('UNAUTHENTICATED', '로그인이 필요합니다.'), Status.UNAUTHENTICATED);
+    }
+
+    const next = await deps.planService(c.env).nextDay(userId, c.req.param('id'));
+    if (next === null) {
+      return c.json(failBody('NOT_FOUND', '루틴을 찾을 수 없습니다.'), Status.NOT_FOUND);
+    }
+
+    return c.json(
+      okBody(NextDayResponseDto, { routineDayId: next.routineDayId, label: next.label }),
+      Status.OK,
+    );
+  });
+
+  // 계획 생성 대화 — 클라는 식별자(routineId/routineDayLabel/date)만 보내고,
+  // 과부하 기록은 서버가 조립해 chat-service에 싣는다. 성공은 봉투 없는 raw proposal.
+  app.post('/api/plans/chat', async (c) => {
+    const userId = await authenticate(c);
+    if (userId === null) {
+      return c.json(failBody('UNAUTHENTICATED', '로그인이 필요합니다.'), Status.UNAUTHENTICATED);
+    }
+
+    const parsed = PlanChatRequestDto.safeParse(await c.req.json());
+    if (!parsed.success) {
+      return c.json(
+        failBody('VALIDATION_FAILED', '대화 형식이 올바르지 않습니다.', parsed.error.issues),
+        Status.UNPROCESSABLE,
+      );
+    }
+    const { routineId, routineDayLabel, date, history } = parsed.data;
+
+    try {
+      const overloads = await deps
+        .planService(c.env)
+        .overloadFor(userId, routineId, routineDayLabel);
+      const proposal = await deps
+        .planChatService(c.env)
+        .reply({ routineId, routineDayLabel, date, overloads }, history);
+
+      return c.json(proposal, Status.OK);
+    } catch (e) {
+      if (e instanceof LlmError) {
+        return c.json(failBody('LLM_FAILED', 'AI 응답 생성에 실패했어요.'), Status.BAD_GATEWAY);
+      }
+
+      throw e;
+    }
   });
 }
 
