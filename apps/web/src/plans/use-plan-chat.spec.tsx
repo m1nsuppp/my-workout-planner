@@ -58,6 +58,12 @@ function fakeService(opts: {
       (async () => {
         throw new Error('unused');
       }),
+    updateStatus: async () => {
+      throw new Error('unused');
+    },
+    updateSet: async () => {
+      throw new Error('unused');
+    },
   };
 }
 

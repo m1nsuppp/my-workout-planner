@@ -4,6 +4,7 @@ import {
   GetPlanResponseDto,
   NextDayResponseDto,
   PlanChatResultDto,
+  UpdateSetResponseDto,
 } from '@workout/contracts';
 import type { ApiResponse } from '@workout/contracts';
 import { ApiResponseError } from '../shared/api-response-error';
@@ -40,6 +41,18 @@ export function createPlanRepository(http: HttpClient): PlanRepository {
       }
 
       return PlanChatResultDto.parse(response.body);
+    },
+    async updateStatus(planId, status) {
+      return unwrap(
+        GetPlanResponseDto,
+        await http.request({ method: 'PATCH', path: `/api/plans/${planId}/status`, body: { status } }),
+      );
+    },
+    async updateSet(setId, record) {
+      return unwrap(
+        UpdateSetResponseDto,
+        await http.request({ method: 'PATCH', path: `/api/sets/${setId}`, body: record }),
+      );
     },
   };
 }

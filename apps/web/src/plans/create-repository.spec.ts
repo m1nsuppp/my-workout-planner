@@ -86,4 +86,41 @@ describe('PlanRepository', () => {
     await expect(result).rejects.toBeInstanceOf(ApiResponseError);
     await expect(result).rejects.toMatchObject({ code: 'LLM_FAILED', status: 502 });
   });
+
+  it('updateStatus는 상태를 보내고 갱신된 계획을 돌려준다', async () => {
+    const http = createFakeHttpClient();
+    const started = { ...plan, status: 'in_progress' };
+    http.stub('PATCH', '/api/plans/p1/status', { status: 200, body: { ok: true, data: started } });
+
+    const result = await createPlanRepository(http).updateStatus('p1', 'in_progress');
+
+    expect(result.status).toBe('in_progress');
+  });
+
+  it('updateSet은 기록을 보내고 갱신된 세트를 돌려준다', async () => {
+    const http = createFakeHttpClient();
+    const updatedSet = {
+      id: 's1',
+      targetWeightKg: 50,
+      targetReps: 8,
+      actual: { weightKg: 52.5, reps: 7, rir: 1, completedAt: '2026-05-25T10:00:00.000Z' },
+    };
+    http.stub('PATCH', '/api/sets/s1', { status: 200, body: { ok: true, data: updatedSet } });
+
+    const result = await createPlanRepository(http).updateSet('s1', { weightKg: 52.5, reps: 7, rir: 1 });
+
+    expect(result.actual?.rir).toBe(1);
+  });
+
+  it('updateStatus 실패 봉투는 ApiResponseError로 승격한다', async () => {
+    const http = createFakeHttpClient();
+    http.stub('PATCH', '/api/plans/p1/status', {
+      status: 409,
+      body: { ok: false, error: { code: 'INVALID_STATE_TRANSITION', message: '전이 불가' } },
+    });
+
+    const result = createPlanRepository(http).updateStatus('p1', 'in_progress');
+
+    await expect(result).rejects.toMatchObject({ code: 'INVALID_STATE_TRANSITION', status: 409 });
+  });
 });

@@ -1,5 +1,7 @@
-import { Link, createFileRoute, redirect } from '@tanstack/react-router';
+import { Link, createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { useState } from 'react';
 import type { JSX } from 'react';
+import { usePlanService } from '../contexts/plan-service-context';
 import type { Plan } from '../../plans/repository';
 import { usePlan } from '../../plans/use-plan';
 
@@ -37,6 +39,51 @@ function PlanDetailScreen(): JSX.Element {
   );
 }
 
+// 상태별 진입 액션. scheduled는 시작(in_progress 전이) 후 실행 화면으로, in_progress는 바로 이어서.
+// completed는 액션 없음(다시 운동하기는 S5 재진입 슬라이스에서).
+function PlanActions({ plan }: { plan: Plan }): JSX.Element | null {
+  const service = usePlanService();
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
+
+  if (plan.status === 'completed') {
+    return null;
+  }
+
+  const toWorkout = (): void => {
+    void navigate({ to: '/workout/$id', params: { id: plan.id } });
+  };
+
+  const start = (): void => {
+    if (plan.status === 'in_progress') {
+      toWorkout();
+
+      return;
+    }
+    setBusy(true);
+    setError(false);
+    void service.updateStatus(plan.id, 'in_progress').then(toWorkout, () => {
+      setBusy(false);
+      setError(true);
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <button
+        type="button"
+        onClick={start}
+        disabled={busy}
+        className="rounded-lg bg-neutral-900 px-4 py-2 font-medium text-white disabled:opacity-40"
+      >
+        {plan.status === 'in_progress' ? '이어서 하기' : '운동 시작'}
+      </button>
+      {error && <p className="text-sm text-red-600">시작에 실패했어요. 다시 시도해 주세요.</p>}
+    </div>
+  );
+}
+
 function PlanDetail({ plan }: { plan: Plan }): JSX.Element {
   return (
     <article className="flex flex-col gap-4">
@@ -49,6 +96,8 @@ function PlanDetail({ plan }: { plan: Plan }): JSX.Element {
           <p className="mt-1 text-xs text-neutral-400">{plan.overloadNote}</p>
         )}
       </div>
+
+      <PlanActions plan={plan} />
 
       <ul className="flex flex-col gap-4">
         {plan.exercises.map((ex, i) => (

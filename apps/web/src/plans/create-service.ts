@@ -17,5 +17,11 @@ export function createPlanService(repository: PlanRepository): PlanService {
     async chat(input) {
       return await repository.chat(input);
     },
+    async updateStatus(planId, status) {
+      return await repository.updateStatus(planId, status);
+    },
+    async updateSet(setId, record) {
+      return await repository.updateSet(setId, record);
+    },
   };
 }

@@ -19,6 +19,12 @@ function fakeService(nextDay: PlanService['nextDay']): PlanService {
     chat: async () => {
       throw new Error('unused');
     },
+    updateStatus: async () => {
+      throw new Error('unused');
+    },
+    updateSet: async () => {
+      throw new Error('unused');
+    },
   };
 }
 
