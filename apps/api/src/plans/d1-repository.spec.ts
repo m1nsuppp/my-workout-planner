@@ -1,7 +1,11 @@
 import { env } from 'cloudflare:workers';
+import { eq } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/d1';
 import { describe, expect, it } from 'vitest';
+import { plans } from '../db/schema';
+import { createD1RoutineRepository } from '../routines/d1-repository';
 import { createD1PlanRepository } from './d1-repository';
-import type { NewPlan, PlanRecord } from './repository';
+import type { NewPlan, PlanRecord, RoutineDayRef } from './repository';
 
 const sample: NewPlan = {
   routineId: 'r1',
@@ -94,5 +98,178 @@ describe('createD1PlanRepository (실제 D1)', () => {
     const found = await repo.findById('u1', created.id);
 
     expect(found?.exercises).toEqual([]);
+  });
+});
+
+// 2-Day 루틴을 만들고 그 id를 돌려준다(next-day/과부하 테스트의 토대).
+const makeRoutine = async (userId: string): Promise<string> => {
+  const routineRepo = createD1RoutineRepository(env.DB);
+  const routine = await routineRepo.create(userId, {
+    name: '상하체',
+    goal: 'hypertrophy',
+    splitType: 'upper_lower',
+    daysPerWeek: 2,
+    days: [
+      {
+        label: '상체',
+        exercises: [{ name: '벤치', muscleGroups: ['chest'], targetSets: 3, targetRepRange: [8, 12] }],
+      },
+      {
+        label: '하체',
+        exercises: [{ name: '스쿼트', muscleGroups: ['legs'], targetSets: 3, targetRepRange: [5, 8] }],
+      },
+    ],
+  });
+
+  return routine.id;
+};
+
+// 주어진 Day를 완료 상태의 plan으로 만든다(repository.create는 scheduled 고정이라 직접 전이).
+const completeDay = async (args: {
+  userId: string;
+  routineId: string;
+  day: RoutineDayRef;
+  date: string;
+  exercises: NewPlan['exercises'];
+}): Promise<void> => {
+  const repo = createD1PlanRepository(env.DB);
+  const created = await repo.create(args.userId, {
+    routineId: args.routineId,
+    routineDayId: args.day.routineDayId,
+    routineDayLabel: args.day.label,
+    date: args.date,
+    exercises: args.exercises,
+  });
+  await drizzle(env.DB).update(plans).set({ status: 'completed' }).where(eq(plans.id, created.id));
+};
+
+const expectDay = (day: RoutineDayRef | null): RoutineDayRef => {
+  if (day === null) {
+    throw new Error('nextDay가 null을 반환함');
+  }
+
+  return day;
+};
+
+describe('createD1PlanRepository.nextDay', () => {
+  it('완료 이력이 없으면 첫 Day(orderIndex 0)를 제시한다', async () => {
+    const repo = createD1PlanRepository(env.DB);
+    const routineId = await makeRoutine('nd1');
+
+    const next = expectDay(await repo.nextDay('nd1', routineId));
+    expect(next.label).toBe('상체');
+    expect(next.orderIndex).toBe(0);
+  });
+
+  it('마지막 완료 Day의 다음 Day를 제시한다', async () => {
+    const repo = createD1PlanRepository(env.DB);
+    const routineId = await makeRoutine('nd2');
+    const first = expectDay(await repo.nextDay('nd2', routineId));
+
+    await completeDay({
+      userId: 'nd2',
+      routineId,
+      day: first,
+      date: '2026-05-25',
+      exercises: [
+        { name: '벤치', muscleGroups: ['chest'], sets: [{ targetWeightKg: 50, targetReps: 8 }] },
+      ],
+    });
+
+    const next = expectDay(await repo.nextDay('nd2', routineId));
+    expect(next.label).toBe('하체');
+    expect(next.orderIndex).toBe(1);
+  });
+
+  it('마지막 Day까지 끝내면 한 바퀴 돌아 첫 Day로 돌아온다', async () => {
+    const repo = createD1PlanRepository(env.DB);
+    const routineId = await makeRoutine('nd3');
+    const first = expectDay(await repo.nextDay('nd3', routineId));
+    await completeDay({
+      userId: 'nd3',
+      routineId,
+      day: first,
+      date: '2026-05-25',
+      exercises: [
+        { name: '벤치', muscleGroups: ['chest'], sets: [{ targetWeightKg: 50, targetReps: 8 }] },
+      ],
+    });
+    const second = expectDay(await repo.nextDay('nd3', routineId));
+    await completeDay({
+      userId: 'nd3',
+      routineId,
+      day: second,
+      date: '2026-05-26',
+      exercises: [
+        { name: '스쿼트', muscleGroups: ['legs'], sets: [{ targetWeightKg: 60, targetReps: 5 }] },
+      ],
+    });
+
+    const next = expectDay(await repo.nextDay('nd3', routineId));
+    expect(next.label).toBe('상체');
+  });
+
+  it('Day가 없는(또는 타 유저) 루틴은 null', async () => {
+    const repo = createD1PlanRepository(env.DB);
+    const routineId = await makeRoutine('owner');
+
+    expect(await repo.nextDay('owner', 'no-such-routine')).toBeNull();
+    expect(await repo.nextDay('intruder', routineId)).toBeNull(); // 소유권 격리
+  });
+});
+
+describe('createD1PlanRepository.lastOverload', () => {
+  it('직전 완료 동일 Day의 실제 세트 기록을 운동별로 반환한다', async () => {
+    const repo = createD1PlanRepository(env.DB);
+    const routineId = await makeRoutine('ov1');
+    const first = expectDay(await repo.nextDay('ov1', routineId));
+    await completeDay({
+      userId: 'ov1',
+      routineId,
+      day: first,
+      date: '2026-05-25',
+      exercises: [
+        {
+          name: '벤치',
+          muscleGroups: ['chest'],
+          sets: [
+            {
+              targetWeightKg: 50,
+              targetReps: 8,
+              actual: { weightKg: 50, reps: 8, rir: 2, completedAt: '2026-05-25T10:00:00.000Z' },
+            },
+          ],
+        },
+      ],
+    });
+
+    const overload = await repo.lastOverload('ov1', routineId, first.routineDayId);
+    expect(overload).toHaveLength(1);
+    expect(overload[0].exerciseName).toBe('벤치');
+    expect(overload[0].sets).toHaveLength(1);
+    expect(overload[0].sets[0].rir).toBe(2);
+  });
+
+  it('미수행(actual 없는) 세트는 과부하 근거에서 제외한다', async () => {
+    const repo = createD1PlanRepository(env.DB);
+    const routineId = await makeRoutine('ov2');
+    const first = expectDay(await repo.nextDay('ov2', routineId));
+    await completeDay({
+      userId: 'ov2',
+      routineId,
+      day: first,
+      date: '2026-05-25',
+      exercises: [
+        { name: '벤치', muscleGroups: ['chest'], sets: [{ targetWeightKg: 50, targetReps: 8 }] },
+      ],
+    });
+
+    const overload = await repo.lastOverload('ov2', routineId, first.routineDayId);
+    expect(overload[0].sets).toEqual([]);
+  });
+
+  it('완료 이력이 없으면 빈 배열', async () => {
+    const repo = createD1PlanRepository(env.DB);
+    expect(await repo.lastOverload('ov3', 'r-none', 'd-none')).toEqual([]);
   });
 });

@@ -3,31 +3,33 @@ import type { NewPlan, PlanRecord, PlanRepository } from './repository';
 import { PlanValidationError, createPlanService } from './service';
 
 // fake 저장소 — 실제 D1 없이 service의 공개 인터페이스(입력 → 출력/throw)만 검증.
-class FakePlanRepository implements PlanRepository {
-  private readonly store = new Map<string, PlanRecord[]>();
-  private seq = 0;
+// next-day/과부하는 이 스위트(create/get)에서 안 쓰이는 더미.
+const createFakePlanRepository = (): PlanRepository => {
+  const store = new Map<string, PlanRecord[]>();
+  let seq = 0;
 
-  async create(userId: string, plan: NewPlan): Promise<PlanRecord> {
-    const record: PlanRecord = {
-      id: `p${++this.seq}`,
-      status: 'scheduled',
-      createdAt: new Date().toISOString(),
-      ...plan,
-    };
-    const list = this.store.get(userId) ?? [];
-    list.push(record);
-    this.store.set(userId, list);
+  return {
+    create: async (userId, plan) => {
+      const record: PlanRecord = {
+        id: `p${++seq}`,
+        status: 'scheduled',
+        createdAt: new Date().toISOString(),
+        ...plan,
+      };
+      const list = store.get(userId) ?? [];
+      list.push(record);
+      store.set(userId, list);
 
-    return record;
-  }
-
-  async findById(userId: string, id: string): Promise<PlanRecord | null> {
-    return (this.store.get(userId) ?? []).find((p) => p.id === id) ?? null;
-  }
-}
+      return record;
+    },
+    findById: async (userId, id) => (store.get(userId) ?? []).find((p) => p.id === id) ?? null,
+    nextDay: async () => null,
+    lastOverload: async () => [],
+  };
+};
 
 const setup = () => {
-  const repo = new FakePlanRepository();
+  const repo = createFakePlanRepository();
 
   return { repo, service: createPlanService(repo) };
 };

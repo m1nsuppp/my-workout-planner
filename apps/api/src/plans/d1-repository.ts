@@ -1,7 +1,14 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { drizzle, type DrizzleD1Database } from 'drizzle-orm/d1';
-import { planExerciseMuscles, planExercises, plannedSets, plans } from '../db/schema';
+import {
+  planExerciseMuscles,
+  planExercises,
+  plannedSets,
+  plans,
+  routineDays,
+  routines,
+} from '../db/schema';
 import type { NewPlan, PlanRecord, PlanRepository } from './repository';
 
 type Db = DrizzleD1Database;
@@ -21,6 +28,98 @@ export function createD1PlanRepository(d1: D1Database): PlanRepository {
         .get();
 
       return row === undefined ? null : await hydrate(db, row);
+    },
+    nextDay: async (userId, routineId) => {
+      // routine_days엔 userId가 없으므로 routines와 join해 소유권을 격리한다(타 유저 루틴이면 빈 배열).
+      const days = await db
+        .select({ id: routineDays.id, label: routineDays.label, orderIndex: routineDays.orderIndex })
+        .from(routineDays)
+        .innerJoin(routines, eq(routineDays.routineId, routines.id))
+        .where(and(eq(routineDays.routineId, routineId), eq(routines.userId, userId)))
+        .orderBy(routineDays.orderIndex);
+      if (days.length === 0) {
+        return null;
+      }
+
+      const last = await db
+        .select({ routineDayId: plans.routineDayId })
+        .from(plans)
+        .where(
+          and(
+            eq(plans.userId, userId),
+            eq(plans.routineId, routineId),
+            eq(plans.status, 'completed'),
+          ),
+        )
+        .orderBy(desc(plans.date))
+        .get();
+
+      // 마지막 완료 Day의 다음 인덱스(한 바퀴 돌면 처음으로). 이력이 없거나 그 Day가 사라졌으면 첫 Day.
+      let nextIndex = 0;
+      if (last !== undefined && last.routineDayId !== null) {
+        const lastIndex = days.findIndex((d) => d.id === last.routineDayId);
+        if (lastIndex !== -1) {
+          nextIndex = (lastIndex + 1) % days.length;
+        }
+      }
+      const day = days[nextIndex];
+
+      return { routineDayId: day.id, label: day.label, orderIndex: day.orderIndex };
+    },
+    lastOverload: async (userId, routineId, routineDayId) => {
+      const last = await db
+        .select({ id: plans.id })
+        .from(plans)
+        .where(
+          and(
+            eq(plans.userId, userId),
+            eq(plans.routineId, routineId),
+            eq(plans.routineDayId, routineDayId),
+            eq(plans.status, 'completed'),
+          ),
+        )
+        .orderBy(desc(plans.date))
+        .get();
+      if (last === undefined) {
+        return [];
+      }
+
+      const exercises = await db
+        .select()
+        .from(planExercises)
+        .where(eq(planExercises.planId, last.id))
+        .orderBy(planExercises.orderIndex);
+      if (exercises.length === 0) {
+        return [];
+      }
+
+      const sets = await db
+        .select()
+        .from(plannedSets)
+        .where(
+          inArray(
+            plannedSets.planExerciseId,
+            exercises.map((e) => e.id),
+          ),
+        )
+        .orderBy(plannedSets.orderIndex);
+
+      return exercises.map((e) => ({
+        exerciseName: e.name,
+        // 실제 수행분(completedAt 있는 세트)만 과부하 근거로 싣는다.
+        sets: sets.flatMap((s) =>
+          s.planExerciseId === e.id && s.completedAt !== null
+            ? [
+                {
+                  weightKg: s.actualWeightKg ?? 0,
+                  reps: s.actualReps ?? 0,
+                  rir: s.actualRir ?? 0,
+                  completedAt: s.completedAt,
+                },
+              ]
+            : [],
+        ),
+      }));
     },
   };
 }

@@ -39,7 +39,30 @@ export interface PlanRecord extends NewPlan {
   createdAt: string;
 }
 
+// 루틴의 한 "Day" 참조. next-day 계산 결과 — 어느 Day를 이번에 소화할지.
+export interface RoutineDayRef {
+  routineDayId: string;
+  label: string;
+  orderIndex: number;
+}
+
+// 직전 동일 Day 완료 세션의 운동별 실제 수행 기록 — 점진적 과부하 제안의 데이터 근거.
+export interface OverloadRecord {
+  exerciseName: string;
+  sets: SetRecordInput[];
+}
+
 export interface PlanRepository {
   create: (userId: string, plan: NewPlan) => Promise<PlanRecord>;
   findById: (userId: string, id: string) => Promise<PlanRecord | null>;
+  // 이 루틴에서 다음에 소화할 Day(마지막 완료 Day의 다음, 한 바퀴 돌면 처음으로).
+  // 완료 이력이 없으면 첫 Day. 루틴에 Day가 없으면 null.
+  // routine_days(루틴 소유 테이블)를 읽기 전용으로 조회한다 — 다음 차례 계산은 plan 생성의 본질적 일부.
+  nextDay: (userId: string, routineId: string) => Promise<RoutineDayRef | null>;
+  // 직전 동일 Day(routineDayId)의 완료 세션에서 운동별 실제 세트 기록. 이력이 없으면 빈 배열.
+  lastOverload: (
+    userId: string,
+    routineId: string,
+    routineDayId: string,
+  ) => Promise<OverloadRecord[]>;
 }
