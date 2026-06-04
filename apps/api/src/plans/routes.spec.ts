@@ -62,6 +62,8 @@ interface FakeOpts {
   updated?: PlanRecord;
   updateStatusError?: Error;
   updatedSet?: PlannedSetRecord;
+  coachApplied?: PlanRecord | null;
+  coachError?: Error;
 }
 const createFakePlanService = (opts: FakeOpts = {}): PlanService => ({
   create: async () => {
@@ -82,6 +84,13 @@ const createFakePlanService = (opts: FakeOpts = {}): PlanService => ({
     return opts.updated ?? null;
   },
   updateSet: async () => opts.updatedSet ?? null,
+  applyCoachChange: async () => {
+    if (opts.coachError !== undefined) {
+      throw opts.coachError;
+    }
+
+    return opts.coachApplied ?? null;
+  },
 });
 
 // 이 스위트는 plan 라우트만 검증한다. 다른 도메인 deps는 호출되지 않는 더미.

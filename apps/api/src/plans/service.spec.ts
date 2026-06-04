@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { NewPlan, PlanRecord, PlanRepository } from './repository';
-import { PlanValidationError, createPlanService } from './service';
+import {
+  CoachApplyError,
+  CoachIdempotencyError,
+  InvalidPlanTransitionError,
+  PlanValidationError,
+  createPlanService,
+} from './service';
 
 // fake 저장소 — 실제 D1 없이 service의 공개 인터페이스(입력 → 출력/throw)만 검증.
 // next-day/과부하/findDayId는 기본 더미, overrides로 케이스별 동작을 주입한다.
@@ -192,5 +198,170 @@ describe('createPlanService.get', () => {
   it('없는 id는 null', async () => {
     const { service } = setup();
     expect(await service.get('u1', 'nope')).toBeNull();
+  });
+});
+
+// 완료 세트(actual)와 미완료 세트가 섞인 in_progress 계획 — 코치 적용 가드 검증용.
+const benchWithDone = (): NewPlan => ({
+  routineId: 'r1',
+  routineDayLabel: '상체 A',
+  date: '2026-05-25',
+  exercises: [
+    {
+      name: '벤치프레스',
+      muscleGroups: ['chest'],
+      sets: [
+        { targetWeightKg: 50, targetReps: 8, actual: { weightKg: 50, reps: 8, rir: 2, completedAt: 't' } },
+        { targetWeightKg: 50, targetReps: 8 },
+        { targetWeightKg: 50, targetReps: 8 },
+      ],
+    },
+  ],
+});
+
+// create 후 in_progress로 전이한 계획을 돌려준다(코치는 운동 중에만 개입).
+const startWorkout = async (
+  service: ReturnType<typeof setup>['service'],
+  input: NewPlan,
+): Promise<PlanRecord> => {
+  const created = await service.create('u1', input);
+  await service.updateStatus('u1', created.id, 'in_progress');
+
+  return created;
+};
+
+const apply = { idempotencyKey: 'k1', appliedAt: '2026-05-25T11:00:00.000Z' };
+
+describe('createPlanService.applyCoachChange — adjust_load', () => {
+  it('미완료 세트만 무게를 하향하고 2.5kg로 반올림한다(완료 세트 보존)', async () => {
+    const { service } = setup();
+    const created = await startWorkout(service, benchWithDone());
+
+    const result = await service.applyCoachChange(
+      'u1',
+      created.id,
+      { kind: 'adjust_load', targetExerciseName: '벤치프레스', weightFactor: 0.85, reason: '컨디션 난조' },
+      apply,
+    );
+
+    const sets = result?.exercises[0].sets ?? [];
+    expect(sets[0].targetWeightKg).toBe(50); // 완료 세트 불변
+    expect(sets[0].actual?.rir).toBe(2);
+    expect(sets[1].targetWeightKg).toBe(42.5); // 50*0.85=42.5
+    expect(sets[2].targetWeightKg).toBe(42.5);
+  });
+
+  it('dropSets로 남은 세트를 줄인다', async () => {
+    const { service } = setup();
+    const created = await startWorkout(service, benchWithDone());
+
+    const result = await service.applyCoachChange(
+      'u1',
+      created.id,
+      { kind: 'adjust_load', targetExerciseName: '벤치프레스', weightFactor: 1, dropSets: 1, reason: 'x' },
+      apply,
+    );
+
+    // 완료 1 + 미완료 2 → dropSets 1 → 완료 1 + 미완료 1 = 2
+    expect(result?.exercises[0].sets).toHaveLength(2);
+  });
+
+  it('dropSets가 남은 세트보다 많으면 거부한다', async () => {
+    const { service } = setup();
+    const created = await startWorkout(service, benchWithDone());
+
+    await expect(
+      service.applyCoachChange(
+        'u1',
+        created.id,
+        { kind: 'adjust_load', targetExerciseName: '벤치프레스', weightFactor: 1, dropSets: 5, reason: 'x' },
+        apply,
+      ),
+    ).rejects.toBeInstanceOf(CoachApplyError);
+  });
+});
+
+describe('createPlanService.applyCoachChange — substitute', () => {
+  const dumbbell = {
+    kind: 'substitute' as const,
+    targetExerciseName: '벤치프레스',
+    replacement: {
+      name: '덤벨프레스',
+      muscleGroups: ['chest'],
+      sets: [{ targetWeightKg: 20, targetReps: 10 }],
+    },
+    reason: '벤치 자리 없음',
+  };
+
+  it('운동을 교체하고 사유를 메모로 남긴다', async () => {
+    const { service } = setup();
+    // 완료 세트 없는 계획(교체 가능)
+    const created = await startWorkout(service, validPlan());
+
+    const result = await service.applyCoachChange('u1', created.id, dumbbell, apply);
+
+    expect(result?.exercises[0].name).toBe('덤벨프레스');
+    expect(result?.exercises[0].note).toBe('벤치 자리 없음');
+  });
+
+  it('이미 수행한 세트가 있으면 교체를 거부한다', async () => {
+    const { service } = setup();
+    const created = await startWorkout(service, benchWithDone());
+
+    await expect(service.applyCoachChange('u1', created.id, dumbbell, apply)).rejects.toBeInstanceOf(
+      CoachApplyError,
+    );
+  });
+
+  it('교체 운동의 근육군이 원본과 안 맞으면 거부한다', async () => {
+    const { service } = setup();
+    const created = await startWorkout(service, validPlan());
+    const wrong = { ...dumbbell, replacement: { ...dumbbell.replacement, muscleGroups: ['legs'] } };
+
+    await expect(service.applyCoachChange('u1', created.id, wrong, apply)).rejects.toBeInstanceOf(
+      CoachApplyError,
+    );
+  });
+});
+
+describe('createPlanService.applyCoachChange — 공통 가드', () => {
+  const adjust = {
+    kind: 'adjust_load' as const,
+    targetExerciseName: '벤치프레스',
+    weightFactor: 0.8,
+    reason: 'x',
+  };
+
+  it('대상 운동이 계획에 없으면 거부한다', async () => {
+    const { service } = setup();
+    const created = await startWorkout(service, validPlan());
+
+    await expect(
+      service.applyCoachChange('u1', created.id, { ...adjust, targetExerciseName: '없는운동' }, apply),
+    ).rejects.toBeInstanceOf(CoachApplyError);
+  });
+
+  it('in_progress가 아니면 거부한다(scheduled)', async () => {
+    const { service } = setup();
+    const created = await service.create('u1', validPlan()); // scheduled 그대로
+
+    await expect(
+      service.applyCoachChange('u1', created.id, adjust, apply),
+    ).rejects.toBeInstanceOf(InvalidPlanTransitionError);
+  });
+
+  it('같은 멱등성 키로 다시 적용하면 거부한다', async () => {
+    const { service } = setup();
+    const created = await startWorkout(service, validPlan());
+    await service.applyCoachChange('u1', created.id, adjust, apply);
+
+    await expect(service.applyCoachChange('u1', created.id, adjust, apply)).rejects.toBeInstanceOf(
+      CoachIdempotencyError,
+    );
+  });
+
+  it('없는 계획은 null', async () => {
+    const { service } = setup();
+    expect(await service.applyCoachChange('u1', 'nope', adjust, apply)).toBeNull();
   });
 });

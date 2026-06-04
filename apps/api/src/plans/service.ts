@@ -1,7 +1,9 @@
 import type {
   NewPlan,
+  NewPlanExercise,
   NewPlannedSet,
   OverloadRecord,
+  PlanExerciseRecord,
   PlanRecord,
   PlanRepository,
   RoutineDayRef,
@@ -26,6 +28,37 @@ export class InvalidPlanTransitionError extends Error {
     this.name = 'InvalidPlanTransitionError';
   }
 }
+
+// 코치 변경안 적용이 중복(멱등성 키 재사용)이라 거부됨. 컨트롤러가 409로 변환한다.
+export class CoachIdempotencyError extends Error {
+  constructor() {
+    super('coach change already applied');
+    this.name = 'CoachIdempotencyError';
+  }
+}
+
+// 코치 변경안이 규칙을 위반함(대상 없음·근육군 불일치·완료세트 보호·dropSets 초과). 컨트롤러가 422로 변환한다.
+export class CoachApplyError extends Error {
+  constructor(readonly issues: string[]) {
+    super('coach change rejected');
+    this.name = 'CoachApplyError';
+  }
+}
+
+// 라우트가 계약 ApplyableChange를 도메인 변형 명세로 매핑해 넘긴다(substitute.replacement는 도메인 운동).
+export type CoachChangeInput =
+  | { kind: 'substitute'; targetExerciseName: string; replacement: NewPlanExercise; reason: string }
+  | {
+      kind: 'adjust_load';
+      targetExerciseName: string;
+      weightFactor: number;
+      repsDelta?: number;
+      dropSets?: number;
+      reason: string;
+    };
+
+const PLATE_STEP = 2.5; // 무게는 2.5kg 단위로 반올림(운동 철학: roundToPlate)
+const MIN_REPS = 1; // 목표 반복은 양의 정수 유지
 
 // 허용 전이만 명시(data-model 상태기계): scheduled→in_progress→completed, 그 외 거부.
 const ALLOWED_TRANSITIONS: Record<string, readonly string[]> = {
@@ -54,6 +87,15 @@ export interface PlanService {
     setId: string,
     actual: SetRecordInput,
   ) => Promise<NewPlannedSet | null>;
+  // 코치 변경안 적용(S8). plan이 없거나 타 유저면 null(404).
+  // in_progress가 아니면 InvalidPlanTransitionError(409), 규칙 위반은 CoachApplyError(422),
+  // 멱등성 키 중복은 CoachIdempotencyError(409). 성공 시 변형된 PlanRecord.
+  applyCoachChange: (
+    userId: string,
+    planId: string,
+    change: CoachChangeInput,
+    apply: { idempotencyKey: string; appliedAt: string },
+  ) => Promise<PlanRecord | null>;
 }
 
 export function createPlanService(repo: PlanRepository): PlanService {
@@ -90,7 +132,87 @@ export function createPlanService(repo: PlanRepository): PlanService {
       return await repo.updateStatus(userId, id, status);
     },
     updateSet: async (userId, setId, actual) => await repo.updateSet(userId, setId, actual),
+    applyCoachChange: async (userId, planId, change, apply) => {
+      const plan = await repo.findById(userId, planId);
+      if (plan === null) {
+        return null;
+      }
+      // 운동 중(in_progress)에만 코치가 개입한다 — 그 외 상태는 적용 거부.
+      if (plan.status !== 'in_progress') {
+        throw new InvalidPlanTransitionError(plan.status, 'coach_apply');
+      }
+
+      const exercises = applyChange(plan.exercises, change);
+      const result = await repo.applyCoachChange(userId, planId, { exercises, ...apply });
+      if (result === 'conflict') {
+        throw new CoachIdempotencyError();
+      }
+
+      return result;
+    },
   };
+}
+
+const newId = (): string => crypto.randomUUID();
+
+// 변형 결과(최종 운동 목록)를 계산한다. 규칙 위반은 CoachApplyError로 throw(컨트롤러가 422).
+// 가드: 대상 실재 / substitute는 근육군 합치·완료세트 보호 / adjust_load는 미완료 세트에만·dropSets 한도.
+function applyChange(
+  exercises: PlanExerciseRecord[],
+  change: CoachChangeInput,
+): PlanExerciseRecord[] {
+  const idx = exercises.findIndex((e) => e.name === change.targetExerciseName);
+  if (idx === -1) {
+    throw new CoachApplyError([`대상 운동 "${change.targetExerciseName}"을(를) 찾을 수 없습니다.`]);
+  }
+  const target = exercises[idx];
+  const replaced = change.kind === 'substitute' ? substitute(target, change) : adjustLoad(target, change);
+
+  return exercises.map((e, i) => (i === idx ? replaced : e));
+}
+
+function substitute(
+  target: PlanExerciseRecord,
+  change: Extract<CoachChangeInput, { kind: 'substitute' }>,
+): PlanExerciseRecord {
+  // 완료 세트 보호 — 이미 수행한 기록이 있으면 운동 자체를 갈아끼우지 않는다(보수적).
+  if (target.sets.some((s) => s.actual !== undefined)) {
+    throw new CoachApplyError(['이미 수행한 세트가 있어 운동을 교체할 수 없습니다.']);
+  }
+  // 동일 근육군 우선 — 원본과 최소 하나의 근육군을 공유해야 한다.
+  const shares = change.replacement.muscleGroups.some((m) => target.muscleGroups.includes(m));
+  if (!shares) {
+    throw new CoachApplyError(['교체 운동의 근육군이 원본과 맞지 않습니다.']);
+  }
+
+  return {
+    name: change.replacement.name,
+    muscleGroups: change.replacement.muscleGroups,
+    note: change.reason, // 교체 사유를 메모로 남겨 흔적을 보존한다.
+    sets: change.replacement.sets.map((s) => ({ ...s, id: newId() })),
+  };
+}
+
+function adjustLoad(
+  target: PlanExerciseRecord,
+  change: Extract<CoachChangeInput, { kind: 'adjust_load' }>,
+): PlanExerciseRecord {
+  // 완료 세트는 불변, 남은(미완료) 세트에만 적용한다.
+  const done = target.sets.filter((s) => s.actual !== undefined);
+  const pending = target.sets.filter((s) => s.actual === undefined);
+
+  const drop = change.dropSets ?? 0;
+  if (drop > pending.length) {
+    throw new CoachApplyError(['줄이려는 세트 수가 남은 세트보다 많습니다.']);
+  }
+  const kept = pending.slice(0, pending.length - drop);
+  const adjusted = kept.map((s) => ({
+    ...s,
+    targetWeightKg: Math.round((s.targetWeightKg * change.weightFactor) / PLATE_STEP) * PLATE_STEP,
+    targetReps: Math.max(MIN_REPS, s.targetReps + (change.repsDelta ?? 0)),
+  }));
+
+  return { ...target, sets: [...done, ...adjusted] };
 }
 
 // "실행 가능한 계획인가"의 의미 규칙. 위반 메시지 목록을 모아 반환.

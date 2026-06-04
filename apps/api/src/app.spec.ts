@@ -35,6 +35,7 @@ const deps: AppDeps = {
     overloadFor: async () => [],
     updateStatus: async () => null,
     updateSet: async () => null,
+    applyCoachChange: async () => null,
   }),
   planChatService: () => ({
     reply: async () => {

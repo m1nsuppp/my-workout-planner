@@ -42,6 +42,7 @@ const makeApp = (authService: AuthService) =>
       overloadFor: async () => [],
       updateStatus: async () => null,
       updateSet: async () => null,
+      applyCoachChange: async () => null,
     }),
     planChatService: () => ({
       reply: async () => {
