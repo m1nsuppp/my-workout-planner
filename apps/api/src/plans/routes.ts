@@ -1,6 +1,8 @@
 import type { Context, Hono } from 'hono';
-import { streamSSE } from 'hono/streaming';
 import {
+  CoachApplyRequestDto,
+  CoachApplyResponseDto,
+  CoachRequestDto,
   CreatePlanRequestDto,
   CreatePlanResponseDto,
   GetPlanResponseDto,
@@ -13,15 +15,24 @@ import {
 import type { Env } from '../env';
 import { getUserId } from '../auth';
 import type { SessionRepository } from '../auth/session-repository';
-import { LlmError } from '../llm/client';
+import { streamChat } from '../chat-stream';
 import { Status, failBody, okBody } from '../response';
 import type { PlanChatService } from './chat-service';
+import type { CoachService } from './coach-service';
 import type { NewPlan } from './repository';
-import { InvalidPlanTransitionError, PlanValidationError, type PlanService } from './service';
+import {
+  CoachApplyError,
+  CoachIdempotencyError,
+  InvalidPlanTransitionError,
+  PlanValidationError,
+  type CoachChangeInput,
+  type PlanService,
+} from './service';
 
 export interface PlanDeps {
   planService: (env: Env) => PlanService;
   planChatService: (env: Env) => PlanChatService;
+  coachService: (env: Env) => CoachService;
   sessionRepository: (env: Env) => SessionRepository;
   now: () => Date;
 }
@@ -169,26 +180,125 @@ export function registerPlanRoutes(app: Hono<{ Bindings: Env }>, deps: PlanDeps)
     }
     const { routineId, routineDayLabel, date, history } = parsed.data;
 
-    return streamSSE(c, async (stream) => {
-      try {
-        const overloads = await deps
-          .planService(c.env)
-          .overloadFor(userId, routineId, routineDayLabel);
-        const proposal = await deps
-          .planChatService(c.env)
-          .reply({ routineId, routineDayLabel, date, overloads }, history, async (text) => {
-            await stream.writeSSE({ event: 'delta', data: JSON.stringify({ text }) });
-          });
-        await stream.writeSSE({ event: 'result', data: JSON.stringify(proposal) });
-      } catch (e) {
-        const error =
-          e instanceof LlmError
-            ? { code: 'LLM_FAILED', message: 'AI 응답 생성에 실패했어요.' }
-            : { code: 'INTERNAL', message: '서버 오류가 발생했어요.' };
-        await stream.writeSSE({ event: 'error', data: JSON.stringify(error) });
-      }
+    return streamChat(c, async (onDelta) => {
+      const overloads = await deps.planService(c.env).overloadFor(userId, routineId, routineDayLabel);
+
+      return await deps
+        .planChatService(c.env)
+        .reply({ routineId, routineDayLabel, date, overloads }, history, onDelta);
     });
   });
+
+  // 운동 중 코치 묻기(S8) — 진행 중 plan을 LiveSessionView로 싣고 SSE로 코치 응답을 흘린다.
+  // 묻기는 영속 변경 없음(읽기). 실제 변경은 coach/apply가 한다.
+  app.post('/api/plans/:id/coach', async (c) => {
+    const userId = await authenticate(c);
+    if (userId === null) {
+      return c.json(failBody('UNAUTHENTICATED', '로그인이 필요합니다.'), Status.UNAUTHENTICATED);
+    }
+
+    const parsed = CoachRequestDto.safeParse(await c.req.json());
+    if (!parsed.success) {
+      return c.json(
+        failBody('VALIDATION_FAILED', '대화 형식이 올바르지 않습니다.', parsed.error.issues),
+        Status.UNPROCESSABLE,
+      );
+    }
+
+    const plan = await deps.planService(c.env).get(userId, c.req.param('id'));
+    if (plan === null) {
+      return c.json(failBody('NOT_FOUND', '계획을 찾을 수 없습니다.'), Status.NOT_FOUND);
+    }
+
+    const session = { routineDayLabel: plan.routineDayLabel, exercises: plan.exercises };
+
+    return streamChat(
+      c,
+      async (onDelta) => await deps.coachService(c.env).reply(session, parsed.data.history, onDelta),
+    );
+  });
+
+  // 코치 변경안 적용(S8) — applying(substitute/adjust_load)만. 서버가 가드 7종을 재검증해 영속 변형.
+  app.post('/api/plans/:id/coach/apply', async (c) => {
+    const userId = await authenticate(c);
+    if (userId === null) {
+      return c.json(failBody('UNAUTHENTICATED', '로그인이 필요합니다.'), Status.UNAUTHENTICATED);
+    }
+
+    // 가드1: Zod 재파싱(weightFactor∈[0.5,1], repsDelta≤0 등 — 신뢰 경계).
+    const parsed = CoachApplyRequestDto.safeParse(await c.req.json());
+    if (!parsed.success) {
+      return c.json(
+        failBody('VALIDATION_FAILED', '변경안 형식이 올바르지 않습니다.', parsed.error.issues),
+        Status.UNPROCESSABLE,
+      );
+    }
+    const { change, idempotencyKey } = parsed.data;
+
+    try {
+      const record = await deps
+        .planService(c.env)
+        .applyCoachChange(userId, c.req.param('id'), toCoachChangeInput(change), {
+          idempotencyKey,
+          appliedAt: deps.now().toISOString(),
+        });
+      if (record === null) {
+        return c.json(failBody('NOT_FOUND', '계획을 찾을 수 없습니다.'), Status.NOT_FOUND);
+      }
+
+      return c.json(okBody(CoachApplyResponseDto, record), Status.OK);
+    } catch (e) {
+      if (e instanceof CoachApplyError) {
+        return c.json(
+          failBody('COACH_APPLY_INVALID', '변경안을 적용할 수 없습니다.', e.issues),
+          Status.UNPROCESSABLE,
+        );
+      }
+      if (e instanceof InvalidPlanTransitionError) {
+        return c.json(
+          failBody('INVALID_STATE_TRANSITION', '운동 중인 계획에만 코치를 적용할 수 있습니다.'),
+          Status.CONFLICT,
+        );
+      }
+      if (e instanceof CoachIdempotencyError) {
+        return c.json(
+          failBody('IDEMPOTENCY_CONFLICT', '이미 적용된 변경입니다.'),
+          Status.CONFLICT,
+        );
+      }
+
+      throw e;
+    }
+  });
+}
+
+// 계약 ApplyableChange → 도메인 변형 명세. substitute.replacement의 세트 id는 버린다(service가 새로 발급).
+function toCoachChangeInput(change: CoachApplyRequestDto['change']): CoachChangeInput {
+  if (change.kind === 'substitute') {
+    return {
+      kind: 'substitute',
+      targetExerciseName: change.targetExerciseName,
+      replacement: {
+        name: change.replacement.name,
+        muscleGroups: [...change.replacement.muscleGroups],
+        note: change.replacement.note,
+        sets: change.replacement.sets.map((s) => ({
+          targetWeightKg: s.targetWeightKg,
+          targetReps: s.targetReps,
+        })),
+      },
+      reason: change.reason,
+    };
+  }
+
+  return {
+    kind: 'adjust_load',
+    targetExerciseName: change.targetExerciseName,
+    weightFactor: change.weightFactor,
+    repsDelta: change.repsDelta,
+    dropSets: change.dropSets,
+    reason: change.reason,
+  };
 }
 
 // 계약 요청 DTO → api 내부 도메인 입력으로 매핑(경계).

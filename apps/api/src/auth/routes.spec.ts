@@ -44,6 +44,11 @@ const makeApp = (authService: AuthService) =>
       updateSet: async () => null,
       applyCoachChange: async () => null,
     }),
+    coachService: () => ({
+      reply: async () => {
+        throw new Error('unused');
+      },
+    }),
     planChatService: () => ({
       reply: async () => {
         throw new Error('unused');

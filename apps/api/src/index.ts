@@ -9,6 +9,7 @@ import { createRoutineChatService } from './routines/chat-service';
 import { createD1PlanRepository } from './plans/d1-repository';
 import { createPlanService } from './plans/service';
 import { createPlanChatService } from './plans/chat-service';
+import { createCoachService } from './plans/coach-service';
 import { createOpenRouterClient } from './llm/openrouter-client';
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30일
@@ -19,6 +20,10 @@ const app = createApp({
   planService: (env) => createPlanService(createD1PlanRepository(env.DB)),
   planChatService: (env) =>
     createPlanChatService(
+      createOpenRouterClient({ apiKey: env.OPENROUTER_API_KEY, model: env.LLM_MODEL }),
+    ),
+  coachService: (env) =>
+    createCoachService(
       createOpenRouterClient({ apiKey: env.OPENROUTER_API_KEY, model: env.LLM_MODEL }),
     ),
   routineChatService: (env) =>

@@ -1,5 +1,4 @@
 import type { Context, Hono } from 'hono';
-import { streamSSE } from 'hono/streaming';
 import {
   CreateRoutineRequestDto,
   CreateRoutineResponseDto,
@@ -10,7 +9,7 @@ import {
 import type { Env } from '../env';
 import { getUserId } from '../auth';
 import type { SessionRepository } from '../auth/session-repository';
-import { LlmError } from '../llm/client';
+import { streamChat } from '../chat-stream';
 import { Status, failBody, okBody } from '../response';
 import type { RoutineChatService } from './chat-service';
 import type { NewRoutine } from './repository';
@@ -74,22 +73,10 @@ export function registerRoutineRoutes(app: Hono<{ Bindings: Env }>, deps: Routin
       );
     }
 
-    return streamSSE(c, async (stream) => {
-      try {
-        const proposal = await deps
-          .routineChatService(c.env)
-          .reply(parsed.data.history, async (text) => {
-            await stream.writeSSE({ event: 'delta', data: JSON.stringify({ text }) });
-          });
-        await stream.writeSSE({ event: 'result', data: JSON.stringify(proposal) });
-      } catch (e) {
-        const error =
-          e instanceof LlmError
-            ? { code: 'LLM_FAILED', message: 'AI 응답 생성에 실패했어요.' }
-            : { code: 'INTERNAL', message: '서버 오류가 발생했어요.' };
-        await stream.writeSSE({ event: 'error', data: JSON.stringify(error) });
-      }
-    });
+    return streamChat(
+      c,
+      async (onDelta) => await deps.routineChatService(c.env).reply(parsed.data.history, onDelta),
+    );
   });
 
   app.get('/api/routines', async (c) => {

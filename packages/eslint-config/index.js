@@ -87,8 +87,8 @@ export const config = [
     },
   },
   {
-    // 테스트는 공개 동작만 검증한다. Response.json(): any 등과 싸우는 앱 수준 엄격함은 완화.
-    files: ['**/*.spec.ts', '**/*.spec.tsx'],
+    // 테스트(및 테스트 픽스처)는 공개 동작만 검증한다. Response.json(): any 등과 싸우는 앱 수준 엄격함은 완화.
+    files: ['**/*.spec.ts', '**/*.spec.tsx', '**/*-fixtures.ts', '**/*-fixtures.tsx'],
     rules: {
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/require-await': 'off',
