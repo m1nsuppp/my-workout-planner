@@ -1,4 +1,5 @@
 import type { Context, Hono } from 'hono';
+import { streamSSE } from 'hono/streaming';
 import {
   CreatePlanRequestDto,
   CreatePlanResponseDto,
@@ -152,7 +153,7 @@ export function registerPlanRoutes(app: Hono<{ Bindings: Env }>, deps: PlanDeps)
   });
 
   // 계획 생성 대화 — 클라는 식별자(routineId/routineDayLabel/date)만 보내고,
-  // 과부하 기록은 서버가 조립해 chat-service에 싣는다. 성공은 봉투 없는 raw proposal.
+  // 과부하 기록은 서버가 조립해 chat-service에 싣는다. 응답은 SSE(delta×N + result), 실패는 event:error.
   app.post('/api/plans/chat', async (c) => {
     const userId = await authenticate(c);
     if (userId === null) {
@@ -168,22 +169,25 @@ export function registerPlanRoutes(app: Hono<{ Bindings: Env }>, deps: PlanDeps)
     }
     const { routineId, routineDayLabel, date, history } = parsed.data;
 
-    try {
-      const overloads = await deps
-        .planService(c.env)
-        .overloadFor(userId, routineId, routineDayLabel);
-      const proposal = await deps
-        .planChatService(c.env)
-        .reply({ routineId, routineDayLabel, date, overloads }, history);
-
-      return c.json(proposal, Status.OK);
-    } catch (e) {
-      if (e instanceof LlmError) {
-        return c.json(failBody('LLM_FAILED', 'AI 응답 생성에 실패했어요.'), Status.BAD_GATEWAY);
+    return streamSSE(c, async (stream) => {
+      try {
+        const overloads = await deps
+          .planService(c.env)
+          .overloadFor(userId, routineId, routineDayLabel);
+        const proposal = await deps
+          .planChatService(c.env)
+          .reply({ routineId, routineDayLabel, date, overloads }, history, async (text) => {
+            await stream.writeSSE({ event: 'delta', data: JSON.stringify({ text }) });
+          });
+        await stream.writeSSE({ event: 'result', data: JSON.stringify(proposal) });
+      } catch (e) {
+        const error =
+          e instanceof LlmError
+            ? { code: 'LLM_FAILED', message: 'AI 응답 생성에 실패했어요.' }
+            : { code: 'INTERNAL', message: '서버 오류가 발생했어요.' };
+        await stream.writeSSE({ event: 'error', data: JSON.stringify(error) });
       }
-
-      throw e;
-    }
+    });
   });
 }
 

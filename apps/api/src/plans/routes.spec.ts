@@ -13,6 +13,29 @@ import { LlmError } from '../llm/client';
 import type { PlannedSetRecord, PlanRecord, RoutineDayRef } from './repository';
 import { InvalidPlanTransitionError, PlanValidationError, type PlanService } from './service';
 
+// SSE 응답 본문을 이벤트별로 분해한다(result/error는 마지막 값, delta는 누적).
+function parseSSE(text: string): { result?: unknown; error?: unknown; deltas: unknown[] } {
+  const out: { result?: unknown; error?: unknown; deltas: unknown[] } = { deltas: [] };
+  for (const block of text.split('\n\n')) {
+    const lines = block.split('\n');
+    const event = lines.find((l) => l.startsWith('event:'))?.slice('event:'.length).trim();
+    const data = lines.find((l) => l.startsWith('data:'))?.slice('data:'.length).trim();
+    if (event === undefined || data === undefined) {
+      continue;
+    }
+    const parsed: unknown = JSON.parse(data);
+    if (event === 'result') {
+      out.result = parsed;
+    } else if (event === 'error') {
+      out.error = parsed;
+    } else if (event === 'delta') {
+      out.deltas.push(parsed);
+    }
+  }
+
+  return out;
+}
+
 const sampleRecord: PlanRecord = {
   id: 'p1',
   status: 'scheduled',
@@ -252,13 +275,13 @@ describe('POST /api/plans/chat', () => {
     history: [{ role: 'user', content: '오늘 계획 짜줘' }],
   };
 
-  it('asking 응답 → 200 + 봉투 없는 raw proposal', async () => {
+  it('asking 응답 → 200 SSE + result 이벤트에 raw proposal', async () => {
     const res = await postChat({ chatReply: { phase: 'asking', message: '컨디션 어때요?' } }, chatBody);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ phase: 'asking', message: '컨디션 어때요?' });
+    expect(parseSSE(await res.text()).result).toEqual({ phase: 'asking', message: '컨디션 어때요?' });
   });
 
-  it('proposing 응답 → 200 + planDraft 포함', async () => {
+  it('proposing 응답 → result 이벤트에 planDraft 포함', async () => {
     // routineId·date는 brand 타입이라 리터럴 대입이 안 됨 — 계약 스키마로 parse해 생성한다.
     const proposal = PlanChatResultDto.parse({
       phase: 'proposing',
@@ -274,14 +297,14 @@ describe('POST /api/plans/chat', () => {
     });
     const res = await postChat({ chatReply: proposal }, chatBody);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual(proposal);
+    expect(parseSSE(await res.text()).result).toEqual(proposal);
   });
 
-  it('LLM 실패 → 502 LLM_FAILED', async () => {
+  it('LLM 실패 → 200 SSE + error 이벤트(LLM_FAILED)', async () => {
+    // SSE는 200 헤더가 이미 나간 뒤라 status로 못 알린다 — 스트림 안 error 이벤트로 전달(api.md 규약).
     const res = await postChat({ chatError: new LlmError('boom') }, chatBody);
-    expect(res.status).toBe(502);
-    const json = ApiFailureSchema.parse(await res.json());
-    expect(json.error.code).toBe('LLM_FAILED');
+    expect(res.status).toBe(200);
+    expect(parseSSE(await res.text()).error).toMatchObject({ code: 'LLM_FAILED' });
   });
 
   it('필드 누락 → 422 VALIDATION_FAILED', async () => {

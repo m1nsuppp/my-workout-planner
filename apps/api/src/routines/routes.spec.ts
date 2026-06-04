@@ -2,7 +2,6 @@ import {
   CreateRoutineResponseDto,
   GetRoutineResponseDto,
   ListRoutinesResponseDto,
-  ApiFailureSchema,
   type RoutineChatResultDto,
 } from '@workout/contracts';
 import { describe, expect, it } from 'vitest';
@@ -11,6 +10,29 @@ import type { SessionRepository } from '../auth/session-repository';
 import { LlmError } from '../llm/client';
 import type { RoutineRecord } from './repository';
 import { RoutineValidationError, type RoutineService } from './service';
+
+// SSE 응답 본문을 이벤트별로 분해한다(result/error는 마지막 값, delta는 누적).
+function parseSSE(text: string): { result?: unknown; error?: unknown; deltas: unknown[] } {
+  const out: { result?: unknown; error?: unknown; deltas: unknown[] } = { deltas: [] };
+  for (const block of text.split('\n\n')) {
+    const lines = block.split('\n');
+    const event = lines.find((l) => l.startsWith('event:'))?.slice('event:'.length).trim();
+    const data = lines.find((l) => l.startsWith('data:'))?.slice('data:'.length).trim();
+    if (event === undefined || data === undefined) {
+      continue;
+    }
+    const parsed: unknown = JSON.parse(data);
+    if (event === 'result') {
+      out.result = parsed;
+    } else if (event === 'error') {
+      out.error = parsed;
+    } else if (event === 'delta') {
+      out.deltas.push(parsed);
+    }
+  }
+
+  return out;
+}
 
 const sampleRecord: RoutineRecord = {
   id: 'r1',
@@ -193,13 +215,13 @@ describe('POST /api/routines/chat', () => {
 
   const history = { history: [{ role: 'user', content: '주 4회 근비대 루틴 짜줘' }] };
 
-  it('asking 응답 → 200 + 봉투 없는 raw proposal', async () => {
+  it('asking 응답 → 200 SSE + result 이벤트에 raw proposal', async () => {
     const res = await postChat({ chatReply: { phase: 'asking', message: '운동 경력은요?' } }, history);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ phase: 'asking', message: '운동 경력은요?' });
+    expect(parseSSE(await res.text()).result).toEqual({ phase: 'asking', message: '운동 경력은요?' });
   });
 
-  it('proposing 응답 → 200 + routine 포함', async () => {
+  it('proposing 응답 → result 이벤트에 routine 포함', async () => {
     const proposal: RoutineChatResultDto = {
       phase: 'proposing',
       message: '이 루틴 어때요?',
@@ -220,14 +242,14 @@ describe('POST /api/routines/chat', () => {
     };
     const res = await postChat({ chatReply: proposal }, history);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual(proposal);
+    expect(parseSSE(await res.text()).result).toEqual(proposal);
   });
 
-  it('LLM 실패 → 502 LLM_FAILED', async () => {
+  it('LLM 실패 → 200 SSE + error 이벤트(LLM_FAILED)', async () => {
+    // SSE는 200 헤더가 이미 나간 뒤라 status로 못 알린다 — 스트림 안 error 이벤트로 전달(api.md 규약).
     const res = await postChat({ chatError: new LlmError('boom') }, history);
-    expect(res.status).toBe(502);
-    const json = ApiFailureSchema.parse(await res.json());
-    expect(json.error.code).toBe('LLM_FAILED');
+    expect(res.status).toBe(200);
+    expect(parseSSE(await res.text()).error).toMatchObject({ code: 'LLM_FAILED' });
   });
 
   it('history 누락 → 422 VALIDATION_FAILED', async () => {

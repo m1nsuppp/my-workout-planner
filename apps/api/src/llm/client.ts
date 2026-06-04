@@ -22,7 +22,8 @@ export interface LlmMessage {
 export const STRUCT_DELIMITER = '===STRUCT===';
 
 // message 토큰이 도착할 때마다 호출되는 스트리밍 핸들러. 없으면 끝까지 모아 한 번에 반환만 한다.
-export type LlmDeltaHandler = (text: string) => void;
+// SSE 전송처럼 비동기 쓰기가 필요할 수 있어 Promise를 허용하고, 호출부는 순서 보장을 위해 await한다.
+export type LlmDeltaHandler = (text: string) => void | Promise<void>;
 
 // 한 번의 생성 결과 — 사람용 message와 schema로 검증된 구조 data를 분리해 돌려준다.
 export interface LlmResult<T> {

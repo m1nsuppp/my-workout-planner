@@ -10,9 +10,9 @@ export function createFakeLlmClient(
     generate: async ({ system, messages, schema }, onDelta) => {
       const { message, ...rest } = respond({ system, messages });
       const text = typeof message === 'string' ? message : '';
-      onDelta?.(text);
+      await onDelta?.(text);
 
-      return await Promise.resolve({ message: text, data: schema.parse(rest) });
+      return { message: text, data: schema.parse(rest) };
     },
   };
 }

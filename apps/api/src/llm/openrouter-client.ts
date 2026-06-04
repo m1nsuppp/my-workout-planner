@@ -88,7 +88,7 @@ async function consumeStream(
   let sentLen = 0; // onDelta로 흘린 message 길이
   let structStarted = false;
 
-  const pump = (piece: string): void => {
+  const pump = async (piece: string): Promise<void> => {
     content += piece;
     if (structStarted) {
       return;
@@ -97,14 +97,14 @@ async function consumeStream(
     if (idx === -1) {
       const safe = content.length - lookback;
       if (safe > sentLen) {
-        onDelta?.(content.slice(sentLen, safe));
+        await onDelta?.(content.slice(sentLen, safe));
         sentLen = safe;
       }
 
       return;
     }
     if (idx > sentLen) {
-      onDelta?.(content.slice(sentLen, idx));
+      await onDelta?.(content.slice(sentLen, idx));
     }
     sentLen = idx;
     structStarted = true;
@@ -123,7 +123,7 @@ async function consumeStream(
       sseBuf = sseBuf.slice(nl + 1);
       const piece = parseDataLine(line);
       if (piece !== null) {
-        pump(piece);
+        await pump(piece);
       }
       nl = sseBuf.indexOf('\n');
     }

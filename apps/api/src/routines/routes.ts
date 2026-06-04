@@ -1,4 +1,5 @@
 import type { Context, Hono } from 'hono';
+import { streamSSE } from 'hono/streaming';
 import {
   CreateRoutineRequestDto,
   CreateRoutineResponseDto,
@@ -56,8 +57,9 @@ export function registerRoutineRoutes(app: Hono<{ Bindings: Env }>, deps: Routin
     }
   });
 
-  // 루틴 생성 대화 — history를 받아 LLM의 다음 응답(질문 or 루틴 제안)을 돌려준다.
-  // ResultDto 규약대로 성공은 봉투 없이 raw proposal, 실패만 봉투로 감싼다.
+  // 루틴 생성 대화 — history를 받아 LLM 응답을 SSE로 흘린다.
+  // 인증·검증 실패는 스트림 시작 전이라 일반 봉투로, 그 뒤 실패는 event:error로 전달한다(api.md 스트림 규약).
+  // 토큰은 event:delta, 최종 구조는 event:result(봉투 없는 raw proposal).
   app.post('/api/routines/chat', async (c) => {
     const userId = await authenticate(c);
     if (userId === null) {
@@ -72,17 +74,22 @@ export function registerRoutineRoutes(app: Hono<{ Bindings: Env }>, deps: Routin
       );
     }
 
-    try {
-      const proposal = await deps.routineChatService(c.env).reply(parsed.data.history);
-
-      return c.json(proposal, Status.OK);
-    } catch (e) {
-      if (e instanceof LlmError) {
-        return c.json(failBody('LLM_FAILED', 'AI 응답 생성에 실패했어요.'), Status.BAD_GATEWAY);
+    return streamSSE(c, async (stream) => {
+      try {
+        const proposal = await deps
+          .routineChatService(c.env)
+          .reply(parsed.data.history, async (text) => {
+            await stream.writeSSE({ event: 'delta', data: JSON.stringify({ text }) });
+          });
+        await stream.writeSSE({ event: 'result', data: JSON.stringify(proposal) });
+      } catch (e) {
+        const error =
+          e instanceof LlmError
+            ? { code: 'LLM_FAILED', message: 'AI 응답 생성에 실패했어요.' }
+            : { code: 'INTERNAL', message: '서버 오류가 발생했어요.' };
+        await stream.writeSSE({ event: 'error', data: JSON.stringify(error) });
       }
-
-      throw e;
-    }
+    });
   });
 
   app.get('/api/routines', async (c) => {
