@@ -77,10 +77,10 @@ function PlanChatScreen({
   };
 
   const confirm = (): void => {
-    // 계획 상세(S6)는 아직 없으므로 확정 후 홈으로 돌아간다. 실패는 chat.status로 화면에 노출된다.
+    // 확정 후 그 계획 상세(S6)로 이동한다. 실패는 chat.status로 화면에 노출된다.
     void chat.confirm().then(
-      () => {
-        void navigate({ to: '/' });
+      (plan) => {
+        void navigate({ to: '/plans/$id', params: { id: plan.id } });
       },
       () => undefined,
     );

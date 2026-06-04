@@ -14,6 +14,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as RoutinesNewRouteImport } from './routes/routines_.new'
 import { Route as RoutinesIdRouteImport } from './routes/routines_.$id'
 import { Route as PlansNewRouteImport } from './routes/plans_.new'
+import { Route as PlansIdRouteImport } from './routes/plans_.$id'
 
 const RoutinesRoute = RoutinesRouteImport.update({
   id: '/routines',
@@ -40,10 +41,16 @@ const PlansNewRoute = PlansNewRouteImport.update({
   path: '/plans/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlansIdRoute = PlansIdRouteImport.update({
+  id: '/plans_/$id',
+  path: '/plans/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/routines': typeof RoutinesRoute
+  '/plans/$id': typeof PlansIdRoute
   '/plans/new': typeof PlansNewRoute
   '/routines/$id': typeof RoutinesIdRoute
   '/routines/new': typeof RoutinesNewRoute
@@ -51,6 +58,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/routines': typeof RoutinesRoute
+  '/plans/$id': typeof PlansIdRoute
   '/plans/new': typeof PlansNewRoute
   '/routines/$id': typeof RoutinesIdRoute
   '/routines/new': typeof RoutinesNewRoute
@@ -59,6 +67,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/routines': typeof RoutinesRoute
+  '/plans_/$id': typeof PlansIdRoute
   '/plans_/new': typeof PlansNewRoute
   '/routines_/$id': typeof RoutinesIdRoute
   '/routines_/new': typeof RoutinesNewRoute
@@ -68,15 +77,23 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/routines'
+    | '/plans/$id'
     | '/plans/new'
     | '/routines/$id'
     | '/routines/new'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/routines' | '/plans/new' | '/routines/$id' | '/routines/new'
+  to:
+    | '/'
+    | '/routines'
+    | '/plans/$id'
+    | '/plans/new'
+    | '/routines/$id'
+    | '/routines/new'
   id:
     | '__root__'
     | '/'
     | '/routines'
+    | '/plans_/$id'
     | '/plans_/new'
     | '/routines_/$id'
     | '/routines_/new'
@@ -85,6 +102,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   RoutinesRoute: typeof RoutinesRoute
+  PlansIdRoute: typeof PlansIdRoute
   PlansNewRoute: typeof PlansNewRoute
   RoutinesIdRoute: typeof RoutinesIdRoute
   RoutinesNewRoute: typeof RoutinesNewRoute
@@ -127,12 +145,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlansNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/plans_/$id': {
+      id: '/plans_/$id'
+      path: '/plans/$id'
+      fullPath: '/plans/$id'
+      preLoaderRoute: typeof PlansIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   RoutinesRoute: RoutinesRoute,
+  PlansIdRoute: PlansIdRoute,
   PlansNewRoute: PlansNewRoute,
   RoutinesIdRoute: RoutinesIdRoute,
   RoutinesNewRoute: RoutinesNewRoute,
