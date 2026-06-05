@@ -1,6 +1,5 @@
 import { Link, createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
-import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { JSX } from 'react';
 import { usePlanService } from '../contexts/plan-service-context';
 import { planQueries } from '../../plans/queries';
@@ -49,42 +48,48 @@ function PlanDetailScreen(): JSX.Element {
 function PlanActions({ plan }: { plan: Plan }): JSX.Element | null {
   const service = usePlanService();
   const navigate = useNavigate();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
-
-  if (plan.status === 'completed') {
-    return null;
-  }
+  const queryClient = useQueryClient();
 
   const toWorkout = (): void => {
     void navigate({ to: '/workout/$id', params: { id: plan.id } });
   };
 
-  const start = (): void => {
+  const start = useMutation({
+    mutationFn: async () => await service.updateStatus(plan.id, 'in_progress'),
+    onSuccess: async () => {
+      // 상태 전이로 목록·상세 캐시가 낡았다 — 루트 키로 한 번에 무효화하고 운동 화면으로.
+      await queryClient.invalidateQueries({ queryKey: planQueries.all });
+      toWorkout();
+    },
+  });
+
+  if (plan.status === 'completed') {
+    return null;
+  }
+
+  // 이미 진행 중이면 상태 전이 없이 바로 이어서, 예정이면 in_progress로 전이 후 이동.
+  const onStart = (): void => {
     if (plan.status === 'in_progress') {
       toWorkout();
 
       return;
     }
-    setBusy(true);
-    setError(false);
-    void service.updateStatus(plan.id, 'in_progress').then(toWorkout, () => {
-      setBusy(false);
-      setError(true);
-    });
+    start.mutate();
   };
 
   return (
     <div className="flex flex-col gap-2">
       <button
         type="button"
-        onClick={start}
-        disabled={busy}
+        onClick={onStart}
+        disabled={start.isPending}
         className="rounded-lg bg-neutral-900 px-4 py-2 font-medium text-white disabled:opacity-40"
       >
         {plan.status === 'in_progress' ? '이어서 하기' : '운동 시작'}
       </button>
-      {error && <p className="text-sm text-red-600">시작에 실패했어요. 다시 시도해 주세요.</p>}
+      {start.isError && (
+        <p className="text-sm text-red-600">시작에 실패했어요. 다시 시도해 주세요.</p>
+      )}
     </div>
   );
 }

@@ -1,7 +1,9 @@
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { JSX } from 'react';
 import { usePlanService } from '../contexts/plan-service-context';
+import { planQueries } from '../../plans/queries';
 import type { CoachChange } from '../../plans/repository';
 import { useCoach } from '../../plans/use-coach';
 
@@ -20,9 +22,9 @@ function CoachScreen(): JSX.Element {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const service = usePlanService();
+  const queryClient = useQueryClient();
   const coach = useCoach(id);
   const [text, setText] = useState('');
-  const [ending, setEnding] = useState(false);
 
   const backToWorkout = (): void => {
     void navigate({ to: '/workout/$id', params: { id } });
@@ -42,17 +44,13 @@ function CoachScreen(): JSX.Element {
   };
 
   // advisory end_session → 상태 변경은 status 엔드포인트로(책임 분리). 종료 후 계획 상세로.
-  const endSession = (): void => {
-    setEnding(true);
-    void service.updateStatus(id, 'completed').then(
-      () => {
-        void navigate({ to: '/plans/$id', params: { id } });
-      },
-      () => {
-        setEnding(false);
-      },
-    );
-  };
+  const endSession = useMutation({
+    mutationFn: async () => await service.updateStatus(id, 'completed'),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: planQueries.all });
+      void navigate({ to: '/plans/$id', params: { id } });
+    },
+  });
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-6">
@@ -99,9 +97,9 @@ function CoachScreen(): JSX.Element {
           <ChangeCard
             change={coach.change}
             applying={coach.status === 'applying'}
-            ending={ending}
+            ending={endSession.isPending}
             onApply={applyChange}
-            onEnd={endSession}
+            onEnd={() => endSession.mutate()}
           />
         )}
       </div>

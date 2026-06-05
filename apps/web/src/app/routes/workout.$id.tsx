@@ -1,5 +1,5 @@
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { JSX } from 'react';
 import { usePlanService } from '../contexts/plan-service-context';
@@ -37,22 +37,15 @@ function WorkoutRoute(): JSX.Element {
 function WorkoutSession({ plan }: { plan: Plan }): JSX.Element {
   const service = usePlanService();
   const navigate = useNavigate();
-  const [finishing, setFinishing] = useState(false);
-  const [finishError, setFinishError] = useState(false);
+  const queryClient = useQueryClient();
 
-  const finish = (): void => {
-    setFinishing(true);
-    setFinishError(false);
-    void service.updateStatus(plan.id, 'completed').then(
-      () => {
-        void navigate({ to: '/plans/$id', params: { id: plan.id } });
-      },
-      () => {
-        setFinishing(false);
-        setFinishError(true);
-      },
-    );
-  };
+  const finish = useMutation({
+    mutationFn: async () => await service.updateStatus(plan.id, 'completed'),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: planQueries.all });
+      void navigate({ to: '/plans/$id', params: { id: plan.id } });
+    },
+  });
 
   return (
     <>
@@ -79,7 +72,9 @@ function WorkoutSession({ plan }: { plan: Plan }): JSX.Element {
         ))}
       </div>
 
-      {finishError && <p className="text-sm text-red-600">운동 종료에 실패했어요. 다시 시도해 주세요.</p>}
+      {finish.isError && (
+        <p className="text-sm text-red-600">운동 종료에 실패했어요. 다시 시도해 주세요.</p>
+      )}
       <div className="flex gap-2">
         <button
           type="button"
@@ -92,11 +87,11 @@ function WorkoutSession({ plan }: { plan: Plan }): JSX.Element {
         </button>
         <button
           type="button"
-          onClick={finish}
-          disabled={finishing}
+          onClick={() => finish.mutate()}
+          disabled={finish.isPending}
           className="flex-1 rounded-lg bg-neutral-900 px-4 py-2 font-medium text-white disabled:opacity-40"
         >
-          {finishing ? '종료하는 중…' : '운동 종료'}
+          {finish.isPending ? '종료하는 중…' : '운동 종료'}
         </button>
       </div>
     </>
