@@ -54,11 +54,18 @@ export const NextDayResponseDto = createApiResponseSchema(
 );
 export type NextDayResponseDto = z.infer<typeof NextDayResponseDto>;
 
-// 계획 생성 대화 요청 — 과부하 기록은 서버가 DB에서 조립하므로 클라는 식별자만 보낸다.
+// 계획 생성 진입 시드 초안 — Day 템플릿 + 직전 과부하로 서버가 결정적으로 채운 카드(LLM 없음).
+// 첫 수행 운동은 무게 0으로 채워 사용자/대화가 마저 정한다.
+export const PlanDraftResponseDto = createApiResponseSchema(PlanDraftSchema);
+export type PlanDraftResponseDto = z.infer<typeof PlanDraftResponseDto>;
+
+// 계획 생성 대화 요청 — 과부하·템플릿은 서버가 DB에서 조립하고, 클라는 식별자 + 현재 카드 상태(draft)를 보낸다.
+// draft는 사용자가 편집 중인 최신 카드 → 모델이 이를 수정해 돌려준다(하이브리드 카드).
 export const PlanChatRequestDto = z.object({
   routineId: RoutineIdSchema,
   routineDayLabel: z.string(),
   date: ISODateSchema,
+  draft: PlanDraftSchema,
   history: z.array(ChatMessageSchema),
 });
 export type PlanChatRequestDto = z.infer<typeof PlanChatRequestDto>;

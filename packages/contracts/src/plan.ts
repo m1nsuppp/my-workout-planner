@@ -72,9 +72,10 @@ export const PlanSummarySchema = z.object({
 });
 export type PlanSummary = z.infer<typeof PlanSummarySchema>;
 
-// 계획 생성 대화의 LLM 출력. RoutineProposal과 동일한 phase 패턴.
-export const PlanProposalSchema = z.discriminatedUnion('phase', [
-  z.object({ phase: z.literal('asking'), message: z.string() }),
-  z.object({ phase: z.literal('proposing'), message: z.string(), planDraft: PlanDraftSchema }),
-]);
+// 계획 생성 대화의 LLM 출력 — 하이브리드 카드는 항상 채워진 초안을 들고 다닌다.
+// message는 코치 코멘트/질문, planDraft는 확정 가능한 최신 카드 상태(grounding된 종목들).
+export const PlanProposalSchema = z.object({
+  message: z.string(),
+  planDraft: PlanDraftSchema,
+});
 export type PlanProposal = z.infer<typeof PlanProposalSchema>;
