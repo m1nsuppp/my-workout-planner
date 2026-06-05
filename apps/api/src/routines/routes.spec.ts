@@ -16,8 +16,14 @@ function parseSSE(text: string): { result?: unknown; error?: unknown; deltas: un
   const out: { result?: unknown; error?: unknown; deltas: unknown[] } = { deltas: [] };
   for (const block of text.split('\n\n')) {
     const lines = block.split('\n');
-    const event = lines.find((l) => l.startsWith('event:'))?.slice('event:'.length).trim();
-    const data = lines.find((l) => l.startsWith('data:'))?.slice('data:'.length).trim();
+    const event = lines
+      .find((l) => l.startsWith('event:'))
+      ?.slice('event:'.length)
+      .trim();
+    const data = lines
+      .find((l) => l.startsWith('data:'))
+      ?.slice('data:'.length)
+      .trim();
     if (event === undefined || data === undefined) {
       continue;
     }
@@ -109,6 +115,10 @@ const appWith = (opts: FakeOpts = {}) =>
       list: async () => [],
       nextDay: async () => null,
       overloadFor: async () => [],
+      templateFor: async () => [],
+      seedDraft: async () => {
+        throw new Error('unused');
+      },
       updateStatus: async () => null,
       updateSet: async () => null,
       applyCoachChange: async () => null,
@@ -223,9 +233,15 @@ describe('POST /api/routines/chat', () => {
   const history = { history: [{ role: 'user', content: '주 4회 근비대 루틴 짜줘' }] };
 
   it('asking 응답 → 200 SSE + result 이벤트에 raw proposal', async () => {
-    const res = await postChat({ chatReply: { phase: 'asking', message: '운동 경력은요?' } }, history);
+    const res = await postChat(
+      { chatReply: { phase: 'asking', message: '운동 경력은요?' } },
+      history,
+    );
     expect(res.status).toBe(200);
-    expect(parseSSE(await res.text()).result).toEqual({ phase: 'asking', message: '운동 경력은요?' });
+    expect(parseSSE(await res.text()).result).toEqual({
+      phase: 'asking',
+      message: '운동 경력은요?',
+    });
   });
 
   it('proposing 응답 → result 이벤트에 routine 포함', async () => {
@@ -241,7 +257,12 @@ describe('POST /api/routines/chat', () => {
           {
             label: '상체 A',
             exercises: [
-              { name: '벤치프레스', muscleGroups: ['chest'], targetSets: 3, targetRepRange: [8, 12] },
+              {
+                name: '벤치프레스',
+                muscleGroups: ['chest'],
+                targetSets: 3,
+                targetRepRange: [8, 12],
+              },
             ],
           },
         ],

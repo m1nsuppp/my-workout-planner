@@ -9,6 +9,7 @@ import {
   ListPlansResponseDto,
   NextDayResponseDto,
   PlanChatRequestDto,
+  PlanDraftResponseDto,
   UpdatePlanStatusRequestDto,
   UpdateSetRequestDto,
   UpdateSetResponseDto,
@@ -154,6 +155,33 @@ export function registerPlanRoutes(app: Hono<{ Bindings: Env }>, deps: PlanDeps)
     );
   });
 
+  // 계획 생성 진입 시드 초안 — Day 템플릿 + 직전 과부하로 결정적으로 채운 카드(LLM 없음).
+  // 화면이 진입 즉시 편집 가능한 카드를 띄우는 토대. day(label)·date는 화면이 정해 쿼리로 싣는다.
+  app.get('/api/routines/:id/plan-draft', async (c) => {
+    const userId = await authenticate(c);
+    if (userId === null) {
+      return c.json(failBody('UNAUTHENTICATED', '로그인이 필요합니다.'), Status.UNAUTHENTICATED);
+    }
+
+    const day = c.req.query('day');
+    const date = c.req.query('date');
+    if (
+      day === undefined ||
+      day === '' ||
+      date === undefined ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(date)
+    ) {
+      return c.json(
+        failBody('VALIDATION_FAILED', 'day·date 쿼리가 필요합니다(date는 YYYY-MM-DD).'),
+        Status.UNPROCESSABLE,
+      );
+    }
+
+    const draft = await deps.planService(c.env).seedDraft(userId, c.req.param('id'), day, date);
+
+    return c.json(okBody(PlanDraftResponseDto, draft), Status.OK);
+  });
+
   // 세트 실제 수행값 기록·정정(S7). completedAt은 클라가 못 정하고 서버 시각으로 찍는다.
   app.patch('/api/sets/:id', async (c) => {
     const userId = await authenticate(c);
@@ -193,14 +221,18 @@ export function registerPlanRoutes(app: Hono<{ Bindings: Env }>, deps: PlanDeps)
         Status.UNPROCESSABLE,
       );
     }
-    const { routineId, routineDayLabel, date, history } = parsed.data;
+    const { routineId, routineDayLabel, date, draft, history } = parsed.data;
 
     return streamChat(c, async (onDelta) => {
-      const overloads = await deps.planService(c.env).overloadFor(userId, routineId, routineDayLabel);
+      const planService = deps.planService(c.env);
+      const [template, overloads] = await Promise.all([
+        planService.templateFor(userId, routineId, routineDayLabel),
+        planService.overloadFor(userId, routineId, routineDayLabel),
+      ]);
 
       return await deps
         .planChatService(c.env)
-        .reply({ routineId, routineDayLabel, date, overloads }, history, onDelta);
+        .reply({ routineId, routineDayLabel, date, template, overloads }, draft, history, onDelta);
     });
   });
 
@@ -229,7 +261,8 @@ export function registerPlanRoutes(app: Hono<{ Bindings: Env }>, deps: PlanDeps)
 
     return streamChat(
       c,
-      async (onDelta) => await deps.coachService(c.env).reply(session, parsed.data.history, onDelta),
+      async (onDelta) =>
+        await deps.coachService(c.env).reply(session, parsed.data.history, onDelta),
     );
   });
 
@@ -276,10 +309,7 @@ export function registerPlanRoutes(app: Hono<{ Bindings: Env }>, deps: PlanDeps)
         );
       }
       if (e instanceof CoachIdempotencyError) {
-        return c.json(
-          failBody('IDEMPOTENCY_CONFLICT', '이미 적용된 변경입니다.'),
-          Status.CONFLICT,
-        );
+        return c.json(failBody('IDEMPOTENCY_CONFLICT', '이미 적용된 변경입니다.'), Status.CONFLICT);
       }
 
       throw e;

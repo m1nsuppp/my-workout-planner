@@ -34,6 +34,10 @@ const deps: AppDeps = {
     list: async () => [],
     nextDay: async () => null,
     overloadFor: async () => [],
+    templateFor: async () => [],
+    seedDraft: async () => {
+      throw new Error('unused');
+    },
     updateStatus: async () => null,
     updateSet: async () => null,
     applyCoachChange: async () => null,

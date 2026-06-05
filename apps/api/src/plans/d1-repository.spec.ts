@@ -82,7 +82,9 @@ describe('createD1PlanRepository (실제 D1)', () => {
       routineId: 'r1',
       routineDayLabel: '하체',
       date: '2026-05-26',
-      exercises: [{ name: '스쿼트', muscleGroups: [], sets: [{ targetWeightKg: 60, targetReps: 5 }] }],
+      exercises: [
+        { name: '스쿼트', muscleGroups: [], sets: [{ targetWeightKg: 60, targetReps: 5 }] },
+      ],
     };
     const created = await repo.create('u1', input);
     const found = await repo.findById('u1', created.id);
@@ -141,7 +143,11 @@ describe('createD1PlanRepository (실제 D1)', () => {
     const repo = createD1PlanRepository(env.DB);
 
     expect(
-      await repo.applyCoachChange('u1', 'nope', { exercises: [], idempotencyKey: 'k', appliedAt: 't' }),
+      await repo.applyCoachChange('u1', 'nope', {
+        exercises: [],
+        idempotencyKey: 'k',
+        appliedAt: 't',
+      }),
     ).toBeNull();
   });
 
@@ -200,11 +206,15 @@ const makeRoutine = async (userId: string): Promise<string> => {
     days: [
       {
         label: '상체',
-        exercises: [{ name: '벤치', muscleGroups: ['chest'], targetSets: 3, targetRepRange: [8, 12] }],
+        exercises: [
+          { name: '벤치', muscleGroups: ['chest'], targetSets: 3, targetRepRange: [8, 12] },
+        ],
       },
       {
         label: '하체',
-        exercises: [{ name: '스쿼트', muscleGroups: ['legs'], targetSets: 3, targetRepRange: [5, 8] }],
+        exercises: [
+          { name: '스쿼트', muscleGroups: ['legs'], targetSets: 3, targetRepRange: [5, 8] },
+        ],
       },
     ],
   });
@@ -377,6 +387,25 @@ describe('createD1PlanRepository.findDayId', () => {
 
     expect(await repo.findDayId('fd2', routineId, '없는Day')).toBeNull();
     expect(await repo.findDayId('intruder', routineId, '상체')).toBeNull();
+  });
+});
+
+describe('createD1PlanRepository.dayTemplate', () => {
+  it('Day에 정의된 운동 템플릿(근육군·세트·반복범위)을 복원한다', async () => {
+    const repo = createD1PlanRepository(env.DB);
+    const routineId = await makeRoutine('dt1');
+
+    expect(await repo.dayTemplate('dt1', routineId, '상체')).toEqual([
+      { name: '벤치', muscleGroups: ['chest'], targetSets: 3, targetRepRange: [8, 12] },
+    ]);
+  });
+
+  it('없는 label·타 유저 루틴은 빈 배열 (소유권 격리)', async () => {
+    const repo = createD1PlanRepository(env.DB);
+    const routineId = await makeRoutine('dt2');
+
+    expect(await repo.dayTemplate('dt2', routineId, '없는Day')).toEqual([]);
+    expect(await repo.dayTemplate('intruder', routineId, '상체')).toEqual([]);
   });
 });
 

@@ -1,4 +1,5 @@
 import type {
+  DayTemplateExercise,
   NewPlan,
   NewPlanExercise,
   NewPlannedSet,
@@ -82,6 +83,20 @@ export interface PlanService {
     routineId: string,
     routineDayLabel: string,
   ) => Promise<OverloadRecord[]>;
+  // 대상 Day(label)에 정의된 운동 템플릿. 계획 생성 대화의 grounding. label이 루틴에 없으면 빈 배열.
+  templateFor: (
+    userId: string,
+    routineId: string,
+    routineDayLabel: string,
+  ) => Promise<DayTemplateExercise[]>;
+  // 계획 생성 진입 시드 초안(LLM 없이 결정적). Day 템플릿 × targetSets,
+  // 무게=직전 동일 운동의 작업 무게 carry ?? 0(첫 수행), 횟수=목표 반복 하한.
+  seedDraft: (
+    userId: string,
+    routineId: string,
+    routineDayLabel: string,
+    date: string,
+  ) => Promise<NewPlan>;
   // 상태 전이. 없으면 null(404), 허용 안 된 전이면 InvalidPlanTransitionError(409).
   updateStatus: (userId: string, id: string, status: string) => Promise<PlanRecord | null>;
   // 세트 실제 수행값 기록. setId가 없거나 타 유저면 null. completedAt은 라우트가 찍어 넘긴다.
@@ -112,7 +127,8 @@ export function createPlanService(repo: PlanRepository): PlanService {
       // 확정 시점에 label → routine_days.id를 역조회해 FK를 채운다(next-day 추적의 토대).
       // 못 찾으면(루틴 수정/삭제) null로 저장 — data-model의 ON DELETE SET NULL 의도와 정합.
       const routineDayId =
-        input.routineDayId ?? (await repo.findDayId(userId, input.routineId, input.routineDayLabel));
+        input.routineDayId ??
+        (await repo.findDayId(userId, input.routineId, input.routineDayLabel));
 
       return await repo.create(userId, { ...input, routineDayId });
     },
@@ -123,6 +139,31 @@ export function createPlanService(repo: PlanRepository): PlanService {
       const dayId = await repo.findDayId(userId, routineId, routineDayLabel);
 
       return dayId === null ? [] : await repo.lastOverload(userId, routineId, dayId);
+    },
+    templateFor: async (userId, routineId, routineDayLabel) =>
+      await repo.dayTemplate(userId, routineId, routineDayLabel),
+    seedDraft: async (userId, routineId, routineDayLabel, date) => {
+      const dayId = await repo.findDayId(userId, routineId, routineDayLabel);
+      const [template, overloads] = await Promise.all([
+        repo.dayTemplate(userId, routineId, routineDayLabel),
+        dayId === null ? Promise.resolve([]) : repo.lastOverload(userId, routineId, dayId),
+      ]);
+      // 직전 동일 운동의 작업 무게(첫 세트)를 carry. 없으면 0(첫 수행 → 사용자/대화가 채움).
+      const lastWeight = new Map(overloads.map((o) => [o.exerciseName, o.sets[0]?.weightKg ?? 0]));
+
+      return {
+        routineId,
+        routineDayLabel,
+        date,
+        exercises: template.map((t) => ({
+          name: t.name,
+          muscleGroups: t.muscleGroups,
+          sets: Array.from({ length: Math.max(1, t.targetSets) }, () => ({
+            targetWeightKg: lastWeight.get(t.name) ?? 0,
+            targetReps: Math.max(MIN_REPS, t.targetRepRange[0]),
+          })),
+        })),
+      };
     },
     updateStatus: async (userId, id, status) => {
       const current = await repo.findById(userId, id);
@@ -170,7 +211,8 @@ function applyChange(
     throw new CoachApplyError([`대상 운동 "${change.targetExerciseName}"을(를) 찾을 수 없습니다.`]);
   }
   const target = exercises[idx];
-  const replaced = change.kind === 'substitute' ? substitute(target, change) : adjustLoad(target, change);
+  const replaced =
+    change.kind === 'substitute' ? substitute(target, change) : adjustLoad(target, change);
 
   return exercises.map((e, i) => (i === idx ? replaced : e));
 }

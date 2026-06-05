@@ -50,6 +50,7 @@ const createFakePlanRepository = (overrides: Partial<PlanRepository> = {}): Plan
     nextDay: async () => null,
     lastOverload: async () => [],
     findDayId: async () => null,
+    dayTemplate: async () => [],
     updateStatus: async (userId, id, status) => {
       const target = (store.get(userId) ?? []).find((p) => p.id === id);
       if (target === undefined) {
@@ -219,7 +220,11 @@ const benchWithDone = (): NewPlan => ({
       name: '벤치프레스',
       muscleGroups: ['chest'],
       sets: [
-        { targetWeightKg: 50, targetReps: 8, actual: { weightKg: 50, reps: 8, rir: 2, completedAt: 't' } },
+        {
+          targetWeightKg: 50,
+          targetReps: 8,
+          actual: { weightKg: 50, reps: 8, rir: 2, completedAt: 't' },
+        },
         { targetWeightKg: 50, targetReps: 8 },
         { targetWeightKg: 50, targetReps: 8 },
       ],
@@ -248,7 +253,12 @@ describe('createPlanService.applyCoachChange — adjust_load', () => {
     const result = await service.applyCoachChange(
       'u1',
       created.id,
-      { kind: 'adjust_load', targetExerciseName: '벤치프레스', weightFactor: 0.85, reason: '컨디션 난조' },
+      {
+        kind: 'adjust_load',
+        targetExerciseName: '벤치프레스',
+        weightFactor: 0.85,
+        reason: '컨디션 난조',
+      },
       apply,
     );
 
@@ -266,7 +276,13 @@ describe('createPlanService.applyCoachChange — adjust_load', () => {
     const result = await service.applyCoachChange(
       'u1',
       created.id,
-      { kind: 'adjust_load', targetExerciseName: '벤치프레스', weightFactor: 1, dropSets: 1, reason: 'x' },
+      {
+        kind: 'adjust_load',
+        targetExerciseName: '벤치프레스',
+        weightFactor: 1,
+        dropSets: 1,
+        reason: 'x',
+      },
       apply,
     );
 
@@ -282,7 +298,13 @@ describe('createPlanService.applyCoachChange — adjust_load', () => {
       service.applyCoachChange(
         'u1',
         created.id,
-        { kind: 'adjust_load', targetExerciseName: '벤치프레스', weightFactor: 1, dropSets: 5, reason: 'x' },
+        {
+          kind: 'adjust_load',
+          targetExerciseName: '벤치프레스',
+          weightFactor: 1,
+          dropSets: 5,
+          reason: 'x',
+        },
         apply,
       ),
     ).rejects.toBeInstanceOf(CoachApplyError);
@@ -316,9 +338,9 @@ describe('createPlanService.applyCoachChange — substitute', () => {
     const { service } = setup();
     const created = await startWorkout(service, benchWithDone());
 
-    await expect(service.applyCoachChange('u1', created.id, dumbbell, apply)).rejects.toBeInstanceOf(
-      CoachApplyError,
-    );
+    await expect(
+      service.applyCoachChange('u1', created.id, dumbbell, apply),
+    ).rejects.toBeInstanceOf(CoachApplyError);
   });
 
   it('교체 운동의 근육군이 원본과 안 맞으면 거부한다', async () => {
@@ -345,7 +367,12 @@ describe('createPlanService.applyCoachChange — 공통 가드', () => {
     const created = await startWorkout(service, validPlan());
 
     await expect(
-      service.applyCoachChange('u1', created.id, { ...adjust, targetExerciseName: '없는운동' }, apply),
+      service.applyCoachChange(
+        'u1',
+        created.id,
+        { ...adjust, targetExerciseName: '없는운동' },
+        apply,
+      ),
     ).rejects.toBeInstanceOf(CoachApplyError);
   });
 
@@ -353,9 +380,9 @@ describe('createPlanService.applyCoachChange — 공통 가드', () => {
     const { service } = setup();
     const created = await service.create('u1', validPlan()); // scheduled 그대로
 
-    await expect(
-      service.applyCoachChange('u1', created.id, adjust, apply),
-    ).rejects.toBeInstanceOf(InvalidPlanTransitionError);
+    await expect(service.applyCoachChange('u1', created.id, adjust, apply)).rejects.toBeInstanceOf(
+      InvalidPlanTransitionError,
+    );
   });
 
   it('같은 멱등성 키로 다시 적용하면 거부한다', async () => {
@@ -371,5 +398,68 @@ describe('createPlanService.applyCoachChange — 공통 가드', () => {
   it('없는 계획은 null', async () => {
     const { service } = setup();
     expect(await service.applyCoachChange('u1', 'nope', adjust, apply)).toBeNull();
+  });
+});
+
+describe('PlanService.seedDraft', () => {
+  it('첫 수행(과부하 없음)은 Day 템플릿 × targetSets로 무게 0·목표 반복 하한을 채운다', async () => {
+    const service = createPlanService(
+      createFakePlanRepository({
+        dayTemplate: async () => [
+          { name: '바벨 스쿼트', muscleGroups: ['legs'], targetSets: 3, targetRepRange: [8, 10] },
+        ],
+      }),
+    );
+
+    const draft = await service.seedDraft('u1', 'r1', '하체', '2026-06-05');
+
+    expect(draft).toEqual({
+      routineId: 'r1',
+      routineDayLabel: '하체',
+      date: '2026-06-05',
+      exercises: [
+        {
+          name: '바벨 스쿼트',
+          muscleGroups: ['legs'],
+          sets: [
+            { targetWeightKg: 0, targetReps: 8 },
+            { targetWeightKg: 0, targetReps: 8 },
+            { targetWeightKg: 0, targetReps: 8 },
+          ],
+        },
+      ],
+    });
+  });
+
+  it('직전 동일 운동의 작업 무게를 carry한다', async () => {
+    const service = createPlanService(
+      createFakePlanRepository({
+        findDayId: async () => 'd1',
+        dayTemplate: async () => [
+          { name: '바벨 스쿼트', muscleGroups: ['legs'], targetSets: 2, targetRepRange: [10, 10] },
+        ],
+        lastOverload: async () => [
+          {
+            exerciseName: '바벨 스쿼트',
+            sets: [{ weightKg: 50, reps: 10, rir: 2, completedAt: '2026-05-31T10:00:00.000Z' }],
+          },
+        ],
+      }),
+    );
+
+    const draft = await service.seedDraft('u1', 'r1', '하체', '2026-06-05');
+
+    expect(draft.exercises[0].sets).toEqual([
+      { targetWeightKg: 50, targetReps: 10 },
+      { targetWeightKg: 50, targetReps: 10 },
+    ]);
+  });
+
+  it('템플릿이 없으면(없는 Day) 빈 운동 목록', async () => {
+    const service = createPlanService(createFakePlanRepository());
+
+    const draft = await service.seedDraft('u1', 'r1', '없는Day', '2026-06-05');
+
+    expect(draft.exercises).toEqual([]);
   });
 });

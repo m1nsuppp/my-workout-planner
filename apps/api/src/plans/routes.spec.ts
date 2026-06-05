@@ -76,7 +76,13 @@ describe('GET /api/plans', () => {
   it('요약 목록 → 200 + 배열', async () => {
     const res = await appWith({
       summaries: [
-        { id: 'p1', date: '2026-05-25', status: 'scheduled', routineDayLabel: '상체 A', exerciseCount: 3 },
+        {
+          id: 'p1',
+          date: '2026-05-25',
+          status: 'scheduled',
+          routineDayLabel: '상체 A',
+          exerciseCount: 3,
+        },
       ],
     }).request('/api/plans', { headers: authed }, devEnv);
 
@@ -155,6 +161,36 @@ describe('GET /api/routines/:id/next-day', () => {
   });
 });
 
+describe('GET /api/routines/:id/plan-draft', () => {
+  const getDraft = async (opts: FakeOpts, query: Record<string, string>, authenticated = true) =>
+    await appWith(opts).request(
+      `/api/routines/r1/plan-draft?${new URLSearchParams(query).toString()}`,
+      { headers: authenticated ? authed : {} },
+      devEnv,
+    );
+
+  it('시드 초안 → 200 + PlanDraft', async () => {
+    const res = await getDraft({}, { day: '상체 A', date: '2026-05-25' });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      data: { routineId: 'r1', routineDayLabel: '상체 A', date: '2026-05-25' },
+    });
+  });
+
+  it('day·date 누락/형식오류 → 422', async () => {
+    expect((await getDraft({}, { day: '상체 A' })).status).toBe(422);
+    expect((await getDraft({}, { date: '2026-05-25' })).status).toBe(422);
+    expect((await getDraft({}, { day: '상체 A', date: '05/25' })).status).toBe(422);
+  });
+
+  it('인증 없음 → 401', async () => {
+    const res = await getDraft({}, { day: '상체 A', date: '2026-05-25' }, false);
+    expect(res.status).toBe(401);
+  });
+});
+
 describe('POST /api/plans/chat', () => {
   const postChat = async (opts: FakeOpts, body: unknown, authenticated = true) =>
     await appWith(opts).request(
@@ -171,19 +207,20 @@ describe('POST /api/plans/chat', () => {
     routineId: 'r1',
     routineDayLabel: '상체 A',
     date: '2026-05-25',
+    draft: {
+      routineId: 'r1',
+      routineDayLabel: '상체 A',
+      date: '2026-05-25',
+      exercises: [
+        { name: '벤치', muscleGroups: ['chest'], sets: [{ targetWeightKg: 50, targetReps: 8 }] },
+      ],
+    },
     history: [{ role: 'user', content: '오늘 계획 짜줘' }],
   };
 
-  it('asking 응답 → 200 SSE + result 이벤트에 raw proposal', async () => {
-    const res = await postChat({ chatReply: { phase: 'asking', message: '컨디션 어때요?' } }, chatBody);
-    expect(res.status).toBe(200);
-    expect(parseSSE(await res.text()).result).toEqual({ phase: 'asking', message: '컨디션 어때요?' });
-  });
-
-  it('proposing 응답 → result 이벤트에 planDraft 포함', async () => {
+  it('대화 응답 → 200 SSE + result 이벤트에 raw proposal(message+planDraft)', async () => {
     // routineId·date는 brand 타입이라 리터럴 대입이 안 됨 — 계약 스키마로 parse해 생성한다.
     const proposal = PlanChatResultDto.parse({
-      phase: 'proposing',
       message: '이 계획 어때요?',
       planDraft: {
         routineId: 'r1',

@@ -1,7 +1,13 @@
-import type { CoachResultDto, PlanChatResultDto } from '@workout/contracts';
+import { PlanChatResultDto, type CoachResultDto } from '@workout/contracts';
 import { createApp } from '../app';
 import type { SessionRepository } from '../auth/session-repository';
-import type { PlannedSetRecord, PlanRecord, PlanSummaryRecord, RoutineDayRef } from './repository';
+import type {
+  NewPlan,
+  PlannedSetRecord,
+  PlanRecord,
+  PlanSummaryRecord,
+  RoutineDayRef,
+} from './repository';
 import type { PlanService } from './service';
 
 // plan/coach 라우트 스위트가 공유하는 테스트 픽스처(컨트롤러 HTTP 행동만 검증하기 위한 fake 조립).
@@ -11,8 +17,14 @@ export function parseSSE(text: string): { result?: unknown; error?: unknown; del
   const out: { result?: unknown; error?: unknown; deltas: unknown[] } = { deltas: [] };
   for (const block of text.split('\n\n')) {
     const lines = block.split('\n');
-    const event = lines.find((l) => l.startsWith('event:'))?.slice('event:'.length).trim();
-    const data = lines.find((l) => l.startsWith('data:'))?.slice('data:'.length).trim();
+    const event = lines
+      .find((l) => l.startsWith('event:'))
+      ?.slice('event:'.length)
+      .trim();
+    const data = lines
+      .find((l) => l.startsWith('data:'))
+      ?.slice('data:'.length)
+      .trim();
     if (event === undefined || data === undefined) {
       continue;
     }
@@ -28,6 +40,23 @@ export function parseSSE(text: string): { result?: unknown; error?: unknown; del
 
   return out;
 }
+
+// 계획 생성 대화의 기본 응답(always-draft). 식별 필드는 brand 타입이라 계약 스키마로 parse해 만든다.
+const defaultChatReply = PlanChatResultDto.parse({
+  message: '오늘 컨디션 어때요?',
+  planDraft: {
+    routineId: 'r1',
+    routineDayLabel: '상체 A',
+    date: '2026-05-25',
+    exercises: [
+      {
+        name: '벤치프레스',
+        muscleGroups: ['chest'],
+        sets: [{ targetWeightKg: 50, targetReps: 8 }],
+      },
+    ],
+  },
+});
 
 export const sampleRecord: PlanRecord = {
   id: 'p1',
@@ -49,6 +78,7 @@ export interface FakeOpts {
   createError?: Error;
   found?: PlanRecord | null;
   nextDay?: RoutineDayRef | null;
+  seedDraft?: NewPlan;
   chatReply?: PlanChatResultDto;
   chatError?: Error;
   updated?: PlanRecord;
@@ -72,6 +102,20 @@ const createFakePlanService = (opts: FakeOpts = {}): PlanService => ({
   list: async () => opts.summaries ?? [],
   nextDay: async () => opts.nextDay ?? null,
   overloadFor: async () => [],
+  templateFor: async () => [],
+  seedDraft: async (_userId, routineId, routineDayLabel, date) =>
+    opts.seedDraft ?? {
+      routineId,
+      routineDayLabel,
+      date,
+      exercises: [
+        {
+          name: '벤치프레스',
+          muscleGroups: ['chest'],
+          sets: [{ targetWeightKg: 50, targetReps: 8 }],
+        },
+      ],
+    },
   updateStatus: async () => {
     if (opts.updateStatusError !== undefined) {
       throw opts.updateStatusError;
@@ -116,7 +160,7 @@ export const appWith = (opts: FakeOpts = {}) =>
           throw opts.chatError;
         }
 
-        return opts.chatReply ?? { phase: 'asking', message: '오늘 컨디션 어때요?' };
+        return opts.chatReply ?? defaultChatReply;
       },
     }),
     coachService: () => ({

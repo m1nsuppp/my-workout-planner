@@ -9,6 +9,8 @@ import {
   plannedSets,
   plans,
   routineDays,
+  routineExerciseMuscles,
+  routineExercises,
   routines,
 } from '../db/schema';
 import type { NewPlan, PlanExerciseRecord, PlanRecord, PlanRepository } from './repository';
@@ -72,7 +74,11 @@ export function createD1PlanRepository(d1: D1Database): PlanRepository {
     nextDay: async (userId, routineId) => {
       // routine_days엔 userId가 없으므로 routines와 join해 소유권을 격리한다(타 유저 루틴이면 빈 배열).
       const days = await db
-        .select({ id: routineDays.id, label: routineDays.label, orderIndex: routineDays.orderIndex })
+        .select({
+          id: routineDays.id,
+          label: routineDays.label,
+          orderIndex: routineDays.orderIndex,
+        })
         .from(routineDays)
         .innerJoin(routines, eq(routineDays.routineId, routines.id))
         .where(and(eq(routineDays.routineId, routineId), eq(routines.userId, userId)))
@@ -176,6 +182,56 @@ export function createD1PlanRepository(d1: D1Database): PlanRepository {
         .get();
 
       return row?.id ?? null;
+    },
+    dayTemplate: async (userId, routineId, label) => {
+      // routine_days엔 userId가 없으므로 routines와 join해 소유권을 격리한다.
+      const day = await db
+        .select({ id: routineDays.id })
+        .from(routineDays)
+        .innerJoin(routines, eq(routineDays.routineId, routines.id))
+        .where(
+          and(
+            eq(routineDays.routineId, routineId),
+            eq(routines.userId, userId),
+            eq(routineDays.label, label),
+          ),
+        )
+        .get();
+      if (day === undefined) {
+        return [];
+      }
+
+      const exercises = await db
+        .select()
+        .from(routineExercises)
+        .where(eq(routineExercises.routineDayId, day.id))
+        .orderBy(routineExercises.orderIndex);
+      if (exercises.length === 0) {
+        return [];
+      }
+
+      const muscles = await db
+        .select()
+        .from(routineExerciseMuscles)
+        .where(
+          inArray(
+            routineExerciseMuscles.routineExerciseId,
+            exercises.map((e) => e.id),
+          ),
+        );
+      const musclesByExercise = new Map<string, string[]>();
+      for (const m of muscles) {
+        const list = musclesByExercise.get(m.routineExerciseId) ?? [];
+        list.push(m.muscleGroup);
+        musclesByExercise.set(m.routineExerciseId, list);
+      }
+
+      return exercises.map((e) => ({
+        name: e.name,
+        muscleGroups: musclesByExercise.get(e.id) ?? [],
+        targetSets: e.targetSets,
+        targetRepRange: [e.targetRepMin, e.targetRepMax] as [number, number],
+      }));
     },
     updateStatus: async (userId, id, status) => {
       const updated = await db
@@ -326,7 +382,13 @@ async function insert(db: Db, userId: string, plan: NewPlan): Promise<PlanRecord
 
   plan.exercises.forEach((ex, exIndex) => {
     const exId = newId();
-    exerciseValues.push({ id: exId, planId: id, name: ex.name, note: ex.note, orderIndex: exIndex });
+    exerciseValues.push({
+      id: exId,
+      planId: id,
+      name: ex.name,
+      note: ex.note,
+      orderIndex: exIndex,
+    });
     for (const muscle of ex.muscleGroups) {
       muscleValues.push({ planExerciseId: exId, muscleGroup: muscle });
     }
