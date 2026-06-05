@@ -18,6 +18,8 @@ export default defineConfig({
       // react 코드는 src/app 아래로 모은다 — 라우트·생성물도 그 안에 둔다.
       routesDirectory: 'src/app/routes',
       generatedRouteTree: 'src/app/route-tree.gen.ts',
+      // 라우트와 코로케이션한 테스트(*.spec.tsx)는 라우트가 아니므로 route-tree 스캔에서 제외한다.
+      routeFileIgnorePattern: '\\.spec\\.',
     }),
     react(),
     tailwindcss(),

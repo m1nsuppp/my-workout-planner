@@ -8,11 +8,15 @@ export default mergeConfig(
   defineConfig({
     test: {
       environment: 'jsdom',
+      setupFiles: ['./src/app/test-support/setup.ts'],
       coverage: {
         // 테스트가 import한 파일만 세면 미테스트 파일이 빠져 거짓 안도가 된다.
         // include로 src 전체를 분모에 넣어 실측치를 강제한다(vitest 4: coverage.all 제거됨).
         include: ['src/**/*.{ts,tsx}'],
-        exclude: ['**/*.gen.*'], // TanStack route-tree 등 코드 생성물
+        exclude: [
+          '**/*.gen.*', // TanStack route-tree 등 코드 생성물
+          'src/app/test-support/**', // 테스트 인프라 — 분모에서 제외
+        ],
       },
     },
   }),
