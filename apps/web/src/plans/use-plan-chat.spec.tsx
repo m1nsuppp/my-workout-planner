@@ -8,23 +8,40 @@ import type { Plan, PlanDraft, PlanProposal } from './repository';
 import type { PlanService } from './service';
 import { usePlanChat, type PlanChatContext } from './use-plan-chat';
 
-const draft: PlanDraft = CreatePlanRequestDto.parse({
+// 진입 시드 초안(편집 카드의 초기값).
+const seed: PlanDraft = CreatePlanRequestDto.parse({
   routineId: 'r1',
   routineDayLabel: '상체 A',
   date: '2026-05-25',
-  exercises: [{ name: '벤치', muscleGroups: ['chest'], sets: [{ targetWeightKg: 50, targetReps: 8 }] }],
+  exercises: [
+    { name: '벤치', muscleGroups: ['chest'], sets: [{ targetWeightKg: 50, targetReps: 8 }] },
+  ],
+});
+
+// 대화 응답이 돌려주는 갱신된 카드(무게 52.5로 증량).
+const updated: PlanDraft = CreatePlanRequestDto.parse({
+  routineId: 'r1',
+  routineDayLabel: '상체 A',
+  date: '2026-05-25',
+  exercises: [
+    { name: '벤치', muscleGroups: ['chest'], sets: [{ targetWeightKg: 52.5, targetReps: 8 }] },
+  ],
 });
 
 const createdPlan: Plan = (() => {
   const envelope = CreatePlanResponseDto.parse({
     ok: true,
     data: {
-      ...draft,
+      ...seed,
       id: 'p1',
       status: 'scheduled',
       createdAt: '2026-05-25T00:00:00.000Z',
       exercises: [
-        { name: '벤치', muscleGroups: ['chest'], sets: [{ id: 's1', targetWeightKg: 50, targetReps: 8 }] },
+        {
+          name: '벤치',
+          muscleGroups: ['chest'],
+          sets: [{ id: 's1', targetWeightKg: 50, targetReps: 8 }],
+        },
       ],
     },
   });
@@ -41,38 +58,21 @@ function fakeService(opts: {
   chat?: PlanService['chat'];
   create?: PlanService['create'];
 }): PlanService {
+  const unused = async (): Promise<never> => {
+    throw new Error('unused');
+  };
+
   return {
-    get: async () => {
-      throw new Error('unused');
-    },
-    nextDay: async () => {
-      throw new Error('unused');
-    },
-    create:
-      opts.create ??
-      (async () => {
-        throw new Error('unused');
-      }),
-    chat:
-      opts.chat ??
-      (async () => {
-        throw new Error('unused');
-      }),
-    updateStatus: async () => {
-      throw new Error('unused');
-    },
-    updateSet: async () => {
-      throw new Error('unused');
-    },
-    list: async () => {
-      throw new Error('unused');
-    },
-    coach: async () => {
-      throw new Error('unused');
-    },
-    applyCoach: async () => {
-      throw new Error('unused');
-    },
+    get: unused,
+    nextDay: unused,
+    planDraft: unused,
+    create: opts.create ?? unused,
+    chat: opts.chat ?? unused,
+    updateStatus: unused,
+    updateSet: unused,
+    list: unused,
+    coach: unused,
+    applyCoach: unused,
   };
 }
 
@@ -81,36 +81,35 @@ const wrapperFor = (service: PlanService) =>
     return <PlanServiceProvider service={service}>{children}</PlanServiceProvider>;
   };
 
-const asking: PlanProposal = { phase: 'asking', message: '오늘 컨디션 어때요?' };
-const proposing: PlanProposal = { phase: 'proposing', message: '이 계획 어때요?', planDraft: draft };
+const reply: PlanProposal = { message: '이 계획 어때요?', planDraft: updated };
 
 describe('usePlanChat', () => {
-  it('초기 상태는 idle이고 메시지가 비어있다', () => {
-    const { result } = renderHook(() => usePlanChat(context), {
+  it('초기 상태는 idle, 메시지 비어있음, 카드는 시드 초안', () => {
+    const { result } = renderHook(() => usePlanChat(context, seed), {
       wrapper: wrapperFor(fakeService({})),
     });
 
     expect(result.current.status).toBe('idle');
     expect(result.current.messages).toEqual([]);
-    expect(result.current.proposal).toBeNull();
+    expect(result.current.draft).toEqual(seed);
   });
 
-  it('send는 컨텍스트(routineId/label/date)와 발화를 함께 보낸다', async () => {
+  it('send는 컨텍스트·현재 카드(draft)·발화를 함께 보낸다', async () => {
     let sent: unknown = null;
-    const { result } = renderHook(() => usePlanChat(context), {
+    const { result } = renderHook(() => usePlanChat(context, seed), {
       wrapper: wrapperFor(
         fakeService({
           chat: async (input) => {
             sent = input;
 
-            return asking;
+            return reply;
           },
         }),
       ),
     });
 
     act(() => {
-      result.current.send('가볍게 가고 싶어');
+      result.current.send('52.5로 올려줘');
     });
 
     await waitFor(() => expect(result.current.status).toBe('idle'));
@@ -118,47 +117,47 @@ describe('usePlanChat', () => {
       routineId: 'r1',
       routineDayLabel: '상체 A',
       date: '2026-05-25',
-      history: [{ role: 'user', content: '가볍게 가고 싶어' }],
+      draft: seed,
+      history: [{ role: 'user', content: '52.5로 올려줘' }],
     });
   });
 
-  it('send → asking이면 user·assistant 메시지가 쌓이고 제안은 없다', async () => {
-    const { result } = renderHook(() => usePlanChat(context), {
-      wrapper: wrapperFor(fakeService({ chat: async () => asking })),
+  it('send → user·assistant 메시지가 쌓이고 카드는 응답으로 갱신된다', async () => {
+    const { result } = renderHook(() => usePlanChat(context, seed), {
+      wrapper: wrapperFor(fakeService({ chat: async () => reply })),
     });
 
     act(() => {
-      result.current.send('계획 짜줘');
+      result.current.send('올려줘');
     });
 
-    await waitFor(() => expect(result.current.status).toBe('idle'));
+    await waitFor(() => expect(result.current.draft).toEqual(updated));
     expect(result.current.messages).toEqual([
-      { role: 'user', content: '계획 짜줘' },
-      { role: 'assistant', content: '오늘 컨디션 어때요?' },
+      { role: 'user', content: '올려줘' },
+      { role: 'assistant', content: '이 계획 어때요?' },
     ]);
-    expect(result.current.proposal).toBeNull();
   });
 
-  it('send → proposing이면 proposal에 planDraft가 담긴다', async () => {
-    const { result } = renderHook(() => usePlanChat(context), {
-      wrapper: wrapperFor(fakeService({ chat: async () => proposing })),
+  it('editSet은 카드의 세트 한 칸을 직접 바꾼다', () => {
+    const { result } = renderHook(() => usePlanChat(context, seed), {
+      wrapper: wrapperFor(fakeService({})),
     });
 
     act(() => {
-      result.current.send('확정할래');
+      result.current.editSet(0, 0, { targetWeightKg: 55 });
     });
 
-    await waitFor(() => expect(result.current.proposal).toEqual(draft));
+    expect(result.current.draft.exercises[0].sets[0].targetWeightKg).toBe(55);
+    expect(result.current.draft.exercises[0].sets[0].targetReps).toBe(8);
   });
 
-  it('confirm은 proposal을 그대로 보내 계획을 생성한다', async () => {
-    let created: PlanDraft | null = null;
-    const { result } = renderHook(() => usePlanChat(context), {
+  it('confirm은 현재 카드(편집분 포함)를 그대로 보내 계획을 생성한다', async () => {
+    const created: PlanDraft[] = [];
+    const { result } = renderHook(() => usePlanChat(context, seed), {
       wrapper: wrapperFor(
         fakeService({
-          chat: async () => proposing,
           create: async (d) => {
-            created = d;
+            created.push(d);
 
             return createdPlan;
           },
@@ -167,27 +166,17 @@ describe('usePlanChat', () => {
     });
 
     act(() => {
-      result.current.send('go');
+      result.current.editSet(0, 0, { targetWeightKg: 55 });
     });
-    await waitFor(() => expect(result.current.proposal).toEqual(draft));
-
     await act(async () => {
       await result.current.confirm();
     });
 
-    expect(created).toEqual(draft);
-  });
-
-  it('제안이 없으면 confirm은 거부된다', async () => {
-    const { result } = renderHook(() => usePlanChat(context), {
-      wrapper: wrapperFor(fakeService({})),
-    });
-
-    await expect(result.current.confirm()).rejects.toThrow();
+    expect(created[0].exercises[0].sets[0].targetWeightKg).toBe(55);
   });
 
   it('chat이 실패하면 chatError 상태가 된다', async () => {
-    const { result } = renderHook(() => usePlanChat(context), {
+    const { result } = renderHook(() => usePlanChat(context, seed), {
       wrapper: wrapperFor(
         fakeService({
           chat: async () => {
@@ -205,21 +194,15 @@ describe('usePlanChat', () => {
   });
 
   it('confirm이 실패하면 createError 상태가 된다', async () => {
-    const { result } = renderHook(() => usePlanChat(context), {
+    const { result } = renderHook(() => usePlanChat(context, seed), {
       wrapper: wrapperFor(
         fakeService({
-          chat: async () => proposing,
           create: async () => {
             throw new ApiResponseError(500, { code: 'INTERNAL', message: '서버 오류' });
           },
         }),
       ),
     });
-
-    act(() => {
-      result.current.send('go');
-    });
-    await waitFor(() => expect(result.current.proposal).toEqual(draft));
 
     await expect(result.current.confirm()).rejects.toThrow();
     await waitFor(() => expect(result.current.status).toBe('createError'));

@@ -38,6 +38,7 @@ export function fakePlanService(over: Partial<PlanService> = {}): PlanService {
     list: rejectUnused,
     create: rejectUnused,
     nextDay: rejectUnused,
+    planDraft: rejectUnused,
     chat: rejectUnused,
     updateStatus: rejectUnused,
     updateSet: rejectUnused,

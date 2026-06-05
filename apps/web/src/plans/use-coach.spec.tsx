@@ -17,7 +17,11 @@ const plan: Plan = (() => {
       date: '2026-05-25',
       status: 'in_progress',
       exercises: [
-        { name: '벤치', muscleGroups: ['chest'], sets: [{ id: 's1', targetWeightKg: 40, targetReps: 8 }] },
+        {
+          name: '벤치',
+          muscleGroups: ['chest'],
+          sets: [{ id: 's1', targetWeightKg: 40, targetReps: 8 }],
+        },
       ],
       createdAt: '2026-05-25T00:00:00.000Z',
     },
@@ -44,6 +48,7 @@ function fakeService(calls: CoachCalls): PlanService {
     list: unused,
     create: unused,
     nextDay: unused,
+    planDraft: unused,
     chat: unused,
     updateStatus: unused,
     updateSet: unused,

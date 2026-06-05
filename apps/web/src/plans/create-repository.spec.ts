@@ -9,7 +9,9 @@ const draft = CreatePlanRequestDto.parse({
   routineId: 'r1',
   routineDayLabel: '상체 A',
   date: '2026-05-25',
-  exercises: [{ name: '벤치', muscleGroups: ['chest'], sets: [{ targetWeightKg: 50, targetReps: 8 }] }],
+  exercises: [
+    { name: '벤치', muscleGroups: ['chest'], sets: [{ targetWeightKg: 50, targetReps: 8 }] },
+  ],
 });
 // 저장된 계획은 세트마다 id가 붙는다(draft엔 없음) — get/create 응답은 이 형태로 검증된다.
 const plan = {
@@ -54,11 +56,21 @@ describe('PlanRepository', () => {
     });
   });
 
+  it('planDraft는 day·date를 쿼리로 보내고 시드 초안을 돌려준다', async () => {
+    const http = createFakeHttpClient();
+    http.stub('GET', '/api/routines/r1/plan-draft?day=%EC%83%81%EC%B2%B4+A&date=2026-05-25', {
+      status: 200,
+      body: { ok: true, data: draft },
+    });
+
+    expect(await createPlanRepository(http).planDraft('r1', '상체 A', '2026-05-25')).toEqual(draft);
+  });
+
   it('chat 성공은 result 이벤트의 raw proposal을 돌려주고 토큰을 onDelta로 흘린다', async () => {
     const http = createFakeHttpClient();
-    const proposal = { phase: 'asking', message: '컨디션 어때요?' };
+    const proposal = { message: '52.5로 올렸어요.', planDraft: draft };
     http.stubStream('POST', '/api/plans/chat', {
-      deltas: ['컨디션 ', '어때요?'],
+      deltas: ['52.5로 ', '올렸어요.'],
       outcome: { status: 200, event: 'result', data: proposal },
     });
 
@@ -68,7 +80,8 @@ describe('PlanRepository', () => {
         routineId: 'r1',
         routineDayLabel: '상체 A',
         date: '2026-05-25',
-        history: [{ role: 'user', content: '계획 짜줘' }],
+        draft,
+        history: [{ role: 'user', content: '52.5로 올려줘' }],
       },
       (t) => {
         streamed += t;
@@ -76,7 +89,7 @@ describe('PlanRepository', () => {
     );
 
     expect(result).toEqual(proposal);
-    expect(streamed).toBe('컨디션 어때요?');
+    expect(streamed).toBe('52.5로 올렸어요.');
   });
 
   it('chat의 error 이벤트는 ApiResponseError로 승격한다', async () => {
@@ -93,6 +106,7 @@ describe('PlanRepository', () => {
       routineId: 'r1',
       routineDayLabel: '상체 A',
       date: '2026-05-25',
+      draft,
       history: [],
     });
 
@@ -120,7 +134,11 @@ describe('PlanRepository', () => {
     };
     http.stub('PATCH', '/api/sets/s1', { status: 200, body: { ok: true, data: updatedSet } });
 
-    const result = await createPlanRepository(http).updateSet('s1', { weightKg: 52.5, reps: 7, rir: 1 });
+    const result = await createPlanRepository(http).updateSet('s1', {
+      weightKg: 52.5,
+      reps: 7,
+      rir: 1,
+    });
 
     expect(result.actual?.rir).toBe(1);
   });
@@ -140,7 +158,13 @@ describe('PlanRepository', () => {
   it('list는 요약 배열을 돌려준다', async () => {
     const http = createFakeHttpClient();
     const summaries = [
-      { id: 'p1', date: '2026-05-25', status: 'scheduled', routineDayLabel: '상체 A', exerciseCount: 3 },
+      {
+        id: 'p1',
+        date: '2026-05-25',
+        status: 'scheduled',
+        routineDayLabel: '상체 A',
+        exerciseCount: 3,
+      },
     ];
     http.stub('GET', '/api/plans', { status: 200, body: { ok: true, data: summaries } });
 
@@ -166,7 +190,9 @@ describe('PlanRepository', () => {
       outcome: { status: 200, event: 'result', data: { message: '풀업으로 바꿔요', change: null } },
     });
 
-    const result = await createPlanRepository(http).coach('p1', [{ role: 'user', content: '자리 없어요' }]);
+    const result = await createPlanRepository(http).coach('p1', [
+      { role: 'user', content: '자리 없어요' },
+    ]);
 
     expect(result).toEqual({ message: '풀업으로 바꿔요', change: null });
   });

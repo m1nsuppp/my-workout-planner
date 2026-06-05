@@ -40,6 +40,7 @@ export interface PlanChatInput {
   routineId: string;
   routineDayLabel: string;
   date: string;
+  draft: PlanDraft;
   history: ChatMessage[];
 }
 
@@ -52,6 +53,8 @@ export interface PlanRepository {
   create: (draft: PlanDraft) => Promise<Plan>;
   // 루틴의 다음 차례 Day 자동 제시(계획 생성 진입 시 기본 Day).
   nextDay: (routineId: string) => Promise<NextDay>;
+  // 계획 생성 진입 시드 초안 — 서버가 Day 템플릿 + 직전 과부하로 결정적으로 채운 카드(LLM 없음).
+  planDraft: (routineId: string, routineDayLabel: string, date: string) => Promise<PlanDraft>;
   // 대화 한 턴 → 다음 응답. message 토큰은 onDelta로 흘리고, 끝에 raw proposal을 돌려준다. 실패는 ApiError.
   chat: (input: PlanChatInput, onDelta?: (text: string) => void) => Promise<PlanProposal>;
   // 운동 실행(S7) — 상태 전이(시작/종료), 세트 실제값 기록.
@@ -63,9 +66,5 @@ export interface PlanRepository {
     history: ChatMessage[],
     onDelta?: (text: string) => void,
   ) => Promise<CoachResponse>;
-  applyCoach: (
-    planId: string,
-    change: ApplyableChange,
-    idempotencyKey: string,
-  ) => Promise<Plan>;
+  applyCoach: (planId: string, change: ApplyableChange, idempotencyKey: string) => Promise<Plan>;
 }

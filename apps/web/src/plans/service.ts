@@ -20,6 +20,7 @@ export interface PlanService {
   list: (range?: PlanDateRange) => Promise<PlanSummary[]>;
   create: (draft: PlanDraft) => Promise<Plan>;
   nextDay: (routineId: string) => Promise<NextDay>;
+  planDraft: (routineId: string, routineDayLabel: string, date: string) => Promise<PlanDraft>;
   chat: (input: PlanChatInput, onDelta?: (text: string) => void) => Promise<PlanProposal>;
   updateStatus: (planId: string, status: PlanStatusUpdate) => Promise<Plan>;
   updateSet: (setId: string, record: SetRecordInput) => Promise<PlannedSet>;

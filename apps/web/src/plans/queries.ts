@@ -22,4 +22,10 @@ export const planQueries = {
       queryKey: [...planQueries.all, 'next-day', routineId],
       queryFn: async () => await service.nextDay(routineId),
     }),
+  // 계획 생성 진입 시드 초안(결정적). day/date가 키에 들어가 진입 컨텍스트별로 캐시된다.
+  draft: (service: PlanService, routineId: string, routineDayLabel: string, date: string) =>
+    queryOptions({
+      queryKey: [...planQueries.all, 'draft', routineId, routineDayLabel, date],
+      queryFn: async () => await service.planDraft(routineId, routineDayLabel, date),
+    }),
 };

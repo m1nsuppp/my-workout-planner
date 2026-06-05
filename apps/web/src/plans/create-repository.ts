@@ -7,6 +7,7 @@ import {
   ListPlansResponseDto,
   NextDayResponseDto,
   PlanChatResultDto,
+  PlanDraftResponseDto,
   UpdateSetResponseDto,
 } from '@workout/contracts';
 import type { ApiResponse } from '@workout/contracts';
@@ -49,6 +50,17 @@ export function createPlanRepository(http: HttpClient): PlanRepository {
         await http.request({ method: 'GET', path: `/api/routines/${routineId}/next-day` }),
       );
     },
+    async planDraft(routineId, routineDayLabel, date) {
+      const query = new URLSearchParams({ day: routineDayLabel, date }).toString();
+
+      return unwrap(
+        PlanDraftResponseDto,
+        await http.request({
+          method: 'GET',
+          path: `/api/routines/${routineId}/plan-draft?${query}`,
+        }),
+      );
+    },
     async chat(input, onDelta) {
       // chat은 SSE — message 토큰은 onDelta로 흘리고, result 이벤트의 raw proposal을 돌려준다.
       const outcome = await http.stream(
@@ -64,7 +76,11 @@ export function createPlanRepository(http: HttpClient): PlanRepository {
     async updateStatus(planId, status) {
       return unwrap(
         GetPlanResponseDto,
-        await http.request({ method: 'PATCH', path: `/api/plans/${planId}/status`, body: { status } }),
+        await http.request({
+          method: 'PATCH',
+          path: `/api/plans/${planId}/status`,
+          body: { status },
+        }),
       );
     },
     async updateSet(setId, record) {

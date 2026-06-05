@@ -17,6 +17,9 @@ export function createPlanService(repository: PlanRepository): PlanService {
     async nextDay(routineId) {
       return await repository.nextDay(routineId);
     },
+    async planDraft(routineId, routineDayLabel, date) {
+      return await repository.planDraft(routineId, routineDayLabel, date);
+    },
     async chat(input, onDelta) {
       return await repository.chat(input, onDelta);
     },
