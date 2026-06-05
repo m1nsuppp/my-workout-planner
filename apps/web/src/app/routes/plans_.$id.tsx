@@ -1,9 +1,11 @@
 import { Link, createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { JSX } from 'react';
 import { usePlanService } from '../contexts/plan-service-context';
+import { planQueries } from '../../plans/queries';
+import { ApiResponseError } from '../../shared/api-response-error';
 import type { Plan } from '../../plans/repository';
-import { usePlan } from '../../plans/use-plan';
 
 export const Route = createFileRoute('/plans_/$id')({
   // 보호 라우트 — 미로그인이면 콘텐츠 렌더 전에 홈으로 돌린다.
@@ -18,7 +20,10 @@ export const Route = createFileRoute('/plans_/$id')({
 
 function PlanDetailScreen(): JSX.Element {
   const { id } = Route.useParams();
-  const state = usePlan(id);
+  const service = usePlanService();
+  const { data, status, error } = useQuery(planQueries.detail(service, id));
+  // 없는 계획(404)은 일반 오류와 구분해 안내를 다르게 준다. useQuery는 단일 error라 에러 객체로 가른다.
+  const notFound = error instanceof ApiResponseError && error.code === 'NOT_FOUND';
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-6">
@@ -31,10 +36,10 @@ function PlanDetailScreen(): JSX.Element {
         </Link>
       </header>
 
-      {state.status === 'loading' && <p className="text-neutral-500">불러오는 중…</p>}
-      {state.status === 'notfound' && <p className="text-neutral-500">계획을 찾을 수 없어요.</p>}
-      {state.status === 'error' && <p className="text-red-600">계획을 불러오지 못했어요.</p>}
-      {state.status === 'loaded' && <PlanDetail plan={state.plan} />}
+      {status === 'pending' && <p className="text-neutral-500">불러오는 중…</p>}
+      {status === 'error' && notFound && <p className="text-neutral-500">계획을 찾을 수 없어요.</p>}
+      {status === 'error' && !notFound && <p className="text-red-600">계획을 불러오지 못했어요.</p>}
+      {status === 'success' && <PlanDetail plan={data} />}
     </main>
   );
 }

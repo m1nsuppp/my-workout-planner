@@ -1,5 +1,6 @@
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router';
 import type { AnyRouter } from '@tanstack/react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, waitFor, type RenderResult } from '@testing-library/react';
 import { expect } from 'vitest';
 import { MeResponseDto } from '@workout/contracts';
@@ -60,6 +61,8 @@ export interface RenderRouteServices {
   authService?: AuthService;
   planService?: PlanService;
   routineService?: RoutineService;
+  // 캐시 동작(무효화 등)을 검증할 때 staleTime/gcTime을 키운 client를 주입한다.
+  queryClient?: QueryClient;
 }
 
 // 메모리 라우터로 라우트 트리를 실제 마운트한다 — 라우트 컴포넌트가 router 훅(useParams/useSearch)과
@@ -78,14 +81,22 @@ export async function renderRoute(
     context: { authService },
   });
 
+  // 테스트마다 새 client — retry off로 에러 분기를 즉시 단언하고, gcTime 0으로 테스트 간 캐시 누수를 막는다.
+  // 무효화 등 캐시 동작을 보려면 호출 측이 staleTime/gcTime을 키운 client를 직접 주입한다.
+  const queryClient =
+    services.queryClient ??
+    new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+
   const result = render(
-    <AuthServiceProvider service={authService}>
-      <RoutineServiceProvider service={routineService}>
-        <PlanServiceProvider service={planService}>
-          <RouterProvider router={router} />
-        </PlanServiceProvider>
-      </RoutineServiceProvider>
-    </AuthServiceProvider>,
+    <QueryClientProvider client={queryClient}>
+      <AuthServiceProvider service={authService}>
+        <RoutineServiceProvider service={routineService}>
+          <PlanServiceProvider service={planService}>
+            <RouterProvider router={router} />
+          </PlanServiceProvider>
+        </RoutineServiceProvider>
+      </AuthServiceProvider>
+    </QueryClientProvider>,
   );
 
   // 가드·로더가 끝나 첫 화면이 확정될 때까지 기다린다(컴포넌트 내부 effect는 각 테스트가 findBy로 대기).

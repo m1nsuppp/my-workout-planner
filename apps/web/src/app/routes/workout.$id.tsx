@@ -1,9 +1,11 @@
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { JSX } from 'react';
 import { usePlanService } from '../contexts/plan-service-context';
+import { planQueries } from '../../plans/queries';
+import { ApiResponseError } from '../../shared/api-response-error';
 import type { Plan, PlannedSet } from '../../plans/repository';
-import { usePlan } from '../../plans/use-plan';
 
 export const Route = createFileRoute('/workout/$id')({
   // 보호 라우트 — 미로그인이면 콘텐츠 렌더 전에 홈으로 돌린다.
@@ -18,14 +20,16 @@ export const Route = createFileRoute('/workout/$id')({
 
 function WorkoutRoute(): JSX.Element {
   const { id } = Route.useParams();
-  const state = usePlan(id);
+  const service = usePlanService();
+  const { data, status, error } = useQuery(planQueries.detail(service, id));
+  const notFound = error instanceof ApiResponseError && error.code === 'NOT_FOUND';
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-6">
-      {state.status === 'loading' && <p className="text-neutral-500">불러오는 중…</p>}
-      {state.status === 'notfound' && <p className="text-neutral-500">계획을 찾을 수 없어요.</p>}
-      {state.status === 'error' && <p className="text-red-600">계획을 불러오지 못했어요.</p>}
-      {state.status === 'loaded' && <WorkoutSession plan={state.plan} />}
+      {status === 'pending' && <p className="text-neutral-500">불러오는 중…</p>}
+      {status === 'error' && notFound && <p className="text-neutral-500">계획을 찾을 수 없어요.</p>}
+      {status === 'error' && !notFound && <p className="text-red-600">계획을 불러오지 못했어요.</p>}
+      {status === 'success' && <WorkoutSession plan={data} />}
     </main>
   );
 }

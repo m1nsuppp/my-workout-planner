@@ -1,7 +1,9 @@
 import { Link, createFileRoute, redirect } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import type { JSX } from 'react';
+import { useRoutineService } from '../contexts/routine-service-context';
+import { routineQueries } from '../../routines/queries';
 import type { Routine } from '../../routines/repository';
-import { useRoutines } from '../../routines/use-routines';
 
 export const Route = createFileRoute('/routines')({
   // 보호 라우트 — 진입 단계에서 인증을 확인해, 미로그인이면 콘텐츠를 렌더하기 전에 홈으로 돌린다.
@@ -15,7 +17,9 @@ export const Route = createFileRoute('/routines')({
 });
 
 function RoutinesScreen(): JSX.Element {
-  const state = useRoutines();
+  const service = useRoutineService();
+  const { data, status } = useQuery(routineQueries.list(service));
+  const routines = data ?? [];
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-6">
@@ -36,12 +40,12 @@ function RoutinesScreen(): JSX.Element {
         루틴 만들기
       </Link>
 
-      {state.status === 'loading' && <p className="text-neutral-500">불러오는 중…</p>}
-      {state.status === 'error' && <p className="text-red-600">루틴을 불러오지 못했어요.</p>}
-      {state.status === 'empty' && <EmptyRoutines />}
-      {state.status === 'loaded' && (
+      {status === 'pending' && <p className="text-neutral-500">불러오는 중…</p>}
+      {status === 'error' && <p className="text-red-600">루틴을 불러오지 못했어요.</p>}
+      {status === 'success' && routines.length === 0 && <EmptyRoutines />}
+      {status === 'success' && routines.length > 0 && (
         <ul className="flex flex-col gap-3">
-          {state.routines.map((routine) => (
+          {routines.map((routine) => (
             <li key={routine.id}>
               <RoutineCard routine={routine} />
             </li>

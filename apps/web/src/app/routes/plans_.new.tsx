@@ -1,8 +1,10 @@
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { JSX, SyntheticEvent } from 'react';
+import { usePlanService } from '../contexts/plan-service-context';
+import { planQueries } from '../../plans/queries';
 import type { PlanDraft } from '../../plans/repository';
-import { useNextDay } from '../../plans/use-next-day';
 import { usePlanChat } from '../../plans/use-plan-chat';
 
 export const Route = createFileRoute('/plans_/new')({
@@ -28,9 +30,10 @@ export const Route = createFileRoute('/plans_/new')({
 // 다음 차례 Day를 먼저 확정한 뒤에야 대화를 시작할 수 있으므로, 로딩/에러를 여기서 가른다.
 function PlanChatRoute(): JSX.Element {
   const { routineId } = Route.useSearch();
-  const nextDay = useNextDay(routineId);
+  const service = usePlanService();
+  const nextDay = useQuery(planQueries.nextDay(service, routineId));
 
-  if (nextDay.status === 'loading') {
+  if (nextDay.status === 'pending') {
     return (
       <main className="flex flex-1 flex-col p-6">
         <p className="text-neutral-500">다음 운동을 준비하는 중…</p>
@@ -45,7 +48,12 @@ function PlanChatRoute(): JSX.Element {
     );
   }
 
-  return <PlanChatScreen routineId={routineId} routineDayLabel={nextDay.nextDay.label} />;
+  return (
+    <PlanChatScreen
+      routineId={routineId}
+      routineDayLabel={nextDay.data.label}
+    />
+  );
 }
 
 // ISODate "YYYY-MM-DD" — ISO 문자열의 날짜 부분(앞 10자).

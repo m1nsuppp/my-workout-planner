@@ -1,9 +1,11 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import type { JSX } from 'react';
 import type { CurrentUser } from '../../auth/repository';
-import { usePlans } from '../../plans/use-plans';
+import { planQueries } from '../../plans/queries';
 import { useAuthService } from '../contexts/auth-service-context';
+import { usePlanService } from '../contexts/plan-service-context';
 
 export const Route = createFileRoute('/')({
   component: Home,
@@ -102,21 +104,23 @@ const STATUS_LABEL: Record<string, string> = {
 
 // 로그인 사용자의 계획 목록(날짜 오름차순). 각 항목은 계획 상세(S6)로 진입한다.
 function PlanList(): JSX.Element {
-  const state = usePlans();
+  const service = usePlanService();
+  const { data, status } = useQuery(planQueries.list(service));
+  const plans = data ?? [];
 
   return (
     <section className="flex flex-col gap-2">
       <h2 className="text-sm font-semibold text-neutral-500">내 계획</h2>
-      {state.status === 'loading' && <p className="text-sm text-neutral-400">불러오는 중…</p>}
-      {state.status === 'error' && (
-        <p className="text-sm text-red-600">계획을 불러오지 못했어요.</p>
+      {status === 'pending' && <p className="text-sm text-neutral-400">불러오는 중…</p>}
+      {status === 'error' && <p className="text-sm text-red-600">계획을 불러오지 못했어요.</p>}
+      {status === 'success' && plans.length === 0 && (
+        <p className="text-sm text-neutral-400">
+          아직 만든 계획이 없어요. 루틴에서 계획을 만들어 보세요.
+        </p>
       )}
-      {state.status === 'empty' && (
-        <p className="text-sm text-neutral-400">아직 만든 계획이 없어요. 루틴에서 계획을 만들어 보세요.</p>
-      )}
-      {state.status === 'loaded' && (
+      {status === 'success' && plans.length > 0 && (
         <ul className="flex flex-col gap-2">
-          {state.plans.map((plan) => (
+          {plans.map((plan) => (
             <li key={plan.id}>
               <Link
                 to="/plans/$id"

@@ -1,7 +1,10 @@
 import { Link, createFileRoute, redirect } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import type { JSX } from 'react';
+import { useRoutineService } from '../contexts/routine-service-context';
+import { routineQueries } from '../../routines/queries';
+import { ApiResponseError } from '../../shared/api-response-error';
 import type { Routine } from '../../routines/repository';
-import { useRoutine } from '../../routines/use-routine';
 
 export const Route = createFileRoute('/routines_/$id')({
   // 보호 라우트 — 미로그인이면 콘텐츠 렌더 전에 홈으로 돌린다(루틴 목록·생성과 동일 정책).
@@ -16,7 +19,9 @@ export const Route = createFileRoute('/routines_/$id')({
 
 function RoutineDetailScreen(): JSX.Element {
   const { id } = Route.useParams();
-  const state = useRoutine(id);
+  const service = useRoutineService();
+  const { data, status, error } = useQuery(routineQueries.detail(service, id));
+  const notFound = error instanceof ApiResponseError && error.code === 'NOT_FOUND';
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-6">
@@ -29,10 +34,10 @@ function RoutineDetailScreen(): JSX.Element {
         </Link>
       </header>
 
-      {state.status === 'loading' && <p className="text-neutral-500">불러오는 중…</p>}
-      {state.status === 'notfound' && <p className="text-neutral-500">루틴을 찾을 수 없어요.</p>}
-      {state.status === 'error' && <p className="text-red-600">루틴을 불러오지 못했어요.</p>}
-      {state.status === 'loaded' && <RoutineDetail routine={state.routine} />}
+      {status === 'pending' && <p className="text-neutral-500">불러오는 중…</p>}
+      {status === 'error' && notFound && <p className="text-neutral-500">루틴을 찾을 수 없어요.</p>}
+      {status === 'error' && !notFound && <p className="text-red-600">루틴을 불러오지 못했어요.</p>}
+      {status === 'success' && <RoutineDetail routine={data} />}
     </main>
   );
 }
@@ -69,8 +74,8 @@ function RoutineDetail({ routine }: { routine: Routine }): JSX.Element {
                 {day.exercises.map((ex, j) => (
                   <li key={j}>
                     <p className="text-sm text-neutral-800">
-                      {ex.name} — {ex.targetSets}세트 × {ex.targetRepRange[0]}–{ex.targetRepRange[1]}
-                      회
+                      {ex.name} — {ex.targetSets}세트 × {ex.targetRepRange[0]}–
+                      {ex.targetRepRange[1]}회
                     </p>
                     <p className="text-xs text-neutral-400">{ex.muscleGroups.join(', ')}</p>
                   </li>

@@ -1,5 +1,7 @@
 import { RouterProvider, createRouter } from '@tanstack/react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
+import { ApiResponseError } from '../shared/api-response-error';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import { createFetchHttpClient } from '../http/create-fetch-http-client';
@@ -23,6 +25,18 @@ const routineService = createRoutineService(createRoutineRepository(httpClient))
 const planService = createPlanService(createPlanRepository(httpClient));
 const authService = createAuthService(createAuthRepository(httpClient));
 
+// 서버 상태 캐시 — 화면이 직접 useQuery/무효화를 다루도록 트리에 노출한다(service 뒤로 숨기지 않는다).
+// ApiResponseError(404 등 우리 도메인 응답 오류)는 재시도해도 결과가 같으니 retry하지 않는다.
+const MAX_QUERY_RETRIES = 3;
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error) =>
+        !(error instanceof ApiResponseError) && failureCount < MAX_QUERY_RETRIES,
+    },
+  },
+});
+
 // authService를 router context에 주입 — 보호 라우트의 beforeLoad 가드가 me()를 쓴다.
 const router = createRouter({ routeTree, context: { authService } });
 
@@ -40,12 +54,14 @@ if (rootElement === null) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <AuthServiceProvider service={authService}>
-      <RoutineServiceProvider service={routineService}>
-        <PlanServiceProvider service={planService}>
-          <RouterProvider router={router} />
-        </PlanServiceProvider>
-      </RoutineServiceProvider>
-    </AuthServiceProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthServiceProvider service={authService}>
+        <RoutineServiceProvider service={routineService}>
+          <PlanServiceProvider service={planService}>
+            <RouterProvider router={router} />
+          </PlanServiceProvider>
+        </RoutineServiceProvider>
+      </AuthServiceProvider>
+    </QueryClientProvider>
   </StrictMode>,
 );
